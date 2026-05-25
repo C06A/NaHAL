@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!--
+  Happy-day usage of the haldish library from the Kotlin/Wasm target (no HTTP).
+
+  Demonstrates:
+    - Extracting a link href from an inline HAL JSON string (plain JSON.parse)
+    - Expanding a URI template with wasmVarsSet() + wasmExpandVars() (synchronous)
+
+  Build:
+    ./gradlew :haldish:wasmJsBrowserProductionLibrary
+
+  Serve (browsers block Wasm from file:// URLs):
+    npx serve .          # from the repo root
+    python3 -m http.server
+
+  Open:
+    http://localhost:3000/examples/wasm/simple-example.html
+
+  Library path:
+    haldish/build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HAL Simple Test — Wasm</title>
+  <style>
+    body  { font-family: monospace; background: #1e1e1e; color: #d4d4d4; margin: 2rem; }
+    h1    { color: #9cdcfe; }
+    .pass { color: #4ec9b0; font-weight: bold; }
+    .fail { color: #f44747; font-weight: bold; }
+    pre   { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>HAL Simple Test — Wasm</h1>
+  <pre id="out">Loading…</pre>
+
+<script type="module">
+import {
+  wasmVarsSet,
+  wasmExpandVars,
+} from '../../haldish/build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs';
+
+const out = document.getElementById('out');
+out.textContent = '';
+
+function log(cls, text) {
+  const span = document.createElement('span');
+  span.className = cls;
+  span.textContent = text + '\n';
+  out.appendChild(span);
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+try {
+  const HAL_JSON =
+    '{"_links":{' +
+    '"self":{"href":"/orders"},' +
+    '"search":{"href":"/orders{?page,size}","templated":true}' +
+    '}}';
+
+  // ── Test 1: extract link href from inline HAL JSON ──────────────────────────
+  const hal      = JSON.parse(HAL_JSON);
+  const selfHref = hal._links.self.href;
+  assert(selfHref === '/orders', `Expected /orders, got ${selfHref}`);
+  log('pass', `✓  link href: ${selfHref}`);
+
+  // ── Test 2: expand URI template via Wasm ────────────────────────────────────
+  const tmpl = hal._links.search.href;
+  wasmVarsSet('page', '1');
+  wasmVarsSet('size', '20');
+  const expanded = wasmExpandVars(tmpl);
+  assert(expanded === '/orders?page=1&size=20',
+    `Expected /orders?page=1&size=20, got ${expanded}`);
+  log('pass', `✓  expanded:  ${expanded}`);
+
+  log('pass', '\nAll WASM tests passed ✓');
+
+} catch (e) {
+  log('fail', 'FAIL: ' + (e.message ?? String(e)));
+  console.error(e);
+}
+</script>
+</body>
+</html>
