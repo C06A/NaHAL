@@ -35,10 +35,26 @@ node examples/javascript/crud-example.mjs
 # Or via Gradle (downloads Node automatically)
 ./gradlew :haldish:runJsSimpleExample
 
-# Core module tests (JS and native C++)
-./gradlew :core:runCoreJsTest
-./gradlew :core:compileCoreNativeTest
-./gradlew :core:runCoreNativeTest
+# Run core JVM tests (only platform with a standard test runner)
+./gradlew :core:jvmTest
+
+# Core platform verification tasks (custom, non-JVM)
+./gradlew :core:runCoreJsTest          # runs src/test/js/simple-example.cjs via Node
+./gradlew :core:compileCoreNativeTest  # compiles C++ test against macosX64 shared lib
+./gradlew :core:runCoreNativeTest      # runs the compiled C++ binary
+
+# Build core native shared library (base name: nahal-core)
+./gradlew :core:linkReleaseSharedMacosArm64
+./gradlew :core:linkReleaseSharedLinuxX64
+
+# Run the desktop GUI (JVM — opens a 1280×820 window)
+./gradlew :ui:jvmRun
+
+# Build the web UI (JS — output: ui/build/dist/js/productionExecutable/)
+./gradlew :ui:jsBrowserProductionWebpack
+
+# Build the Wasm web UI
+./gradlew :ui:wasmJsBrowserProductionWebpack
 ```
 
 ## Architecture
@@ -46,8 +62,8 @@ node examples/javascript/crud-example.mjs
 This is a Kotlin Multiplatform project with three modules:
 
 - **`:haldish`** — The published library: a HAL (Hypertext Application Language) client supporting JSON, XML, and YAML HAL formats. Targets JVM, JS (IR), WasmJS, Linux (x64/arm64), macOS (x64/arm64), iOS, and Windows.
-- **`:core`** — Networking/domain layer built on top of `:haldish` (currently empty source).
-- **`:ui`** — Compose Multiplatform UI components depending on `:core` (currently empty source).
+- **`:core`** — Higher-level navigation layer built on top of `:haldish`. Provides `HalNavigator`, `LinkSelector`, `NavigationPlugin`, and platform facades. Library module — no application entry point.
+- **`:ui`** — Compose Multiplatform desktop/browser/mobile GUI client. Implements the HAL navigator UI (two-pane: traversal rail + resource viewer, accordion panels, request builder, template expander, breadcrumb navigation).
 
 Dependency direction: `:ui` → `:core` → `:haldish` (each module exposes its dependency via `api()`).
 
@@ -70,13 +86,84 @@ HalHttpClient → HalHttpRequest → Ktor HttpClient (platform engine)
 
 `HalFormatDetector.detect(contentType, body)` — checks the content-type header first; falls back to body sniffing (`{` → JSON, `<` → XML) when content-type is absent or generic.
 
-### Platform-specific pieces
+### Key data flow in `:core`
+
+```
+HalNavigator.navigate(resource, selector, method, ...)
+       │
+       ├── LinkSelector.select(resource)      → HalLink  (TopLevel / InEmbedded / InItems)
+       │
+       ├── NavigationPlugin.preRequest(link)  → HalLink  (fold over plugin list)
+       │
+       ├── HalHttpClient.resolveLink(...)     → HalLink  (HaldishPlugin.preLink hook)
+       │
+       ├── HalLink.expandHref(templateVars)   → URL
+       │
+       ├── HalHttpClient.execute(request)     → HalHttpResponse
+       │
+       ├── NavigationPlugin.postResponse(...) → HalHttpResponse (fold)
+       │
+       └── HalParser.parse(body, contentType) → HalDocument?
+                                               (null if response is not HAL)
+                    ↓
+            NavigationResponse { raw, document, isHal, statusCode, isSuccess }
+```
+
+#### Core API types
+
+| Type | Role |
+|---|---|
+| `HalNavigator` | Main entry point; wraps `HalHttpClient`, applies plugins, returns `NavigationResponse` |
+| `LinkSelector` | Sealed class — `TopLevel(rel, index)`, `InEmbedded(embeddedRel, embeddedIndex, linkRel, linkIndex)`, `InItems(itemIndex, linkRel, linkIndex)` |
+| `NavigationResponse` | Wraps `HalHttpResponse` + parsed `HalDocument?`; exposes `isHal`, `statusCode`, `isSuccess` |
+| `NavigatorConfig` | `baseUrl`, `defaultHeaders`, `defaultCookies`, `properties` passed to plugins at init |
+| `NavigationPlugin` | Interface: `initialize(config)`, `preRequest(link, resource) → HalLink`, `postResponse(response) → HalHttpResponse` |
+| `CoreException` | Sealed base; `NoSuchLinkException(selector)` thrown when `LinkSelector.select` returns null |
+
+#### `:core` platform-specific pieces
+
+| Source set | What it provides |
+|---|---|
+| `jsMain` | `JsCoreNavigator` (`@JsExport` class) — `linkHref()` / `embeddedLinkHref()` Promise-friendly helpers |
+| `wasmJsMain` | Top-level `@JsExport` functions `coreLinkHref` / `coreEmbeddedLinkHref` |
+| `nativeMain` | `@CName("core_link_href")` / `@CName("core_embedded_link_href")` C-exported functions |
+
+Native shared library base name is `nahal-core` (header: `core/build/bin/<target>/releaseShared/libnahal_core.h`).
+
+### Key structure of `:ui`
+
+```
+NaHalNavigator                 — root composable (theme + state bootstrap)
+  └── NaHalNavigatorContent
+        ├── NaHalTopBar        — address bar, back/forward, loading indicator
+        ├── Left rail (Column)
+        │     ├── TraversalTree   — clickable history nodes
+        │     └── RequestLog      — reverse-chronological request list
+        └── Center pane (Box)
+              ├── TemplateForm    — URI template variable editor (when pendingRequest.templated)
+              ├── RequestBuilder  — method/headers/cookies/body editor (when pendingRequest ready)
+              └── CenterPanel     — response/request viewer
+                    ├── BreadcrumbTrail
+                    ├── Accordion (response mode, pretty)
+                    │     ├── LinksPanel    — follow / expand links
+                    │     ├── EmbeddedPanel — open embedded sub-resources
+                    │     ├── PropTree      — JSON property tree
+                    │     ├── HeadersPanel / CookiesPanel
+                    │     └── ArrayItemsPanel — for top-level JSON array responses
+                    ├── RawJsonPanel (response mode, raw)
+                    ├── Accordion (request mode, pretty)
+                    └── CurlPanel (request mode, raw — shows equivalent curl command)
+```
+
+`NavigatorState` (in `state/`) owns all mutable state: `history`, `cursor`, `loading`, `pendingRequest`, `requestLog`. It wraps `HalHttpClient` directly (bypasses `:core`'s `HalNavigator` — simpler for the UI's event-driven model). Platform entries (`jvmMain/main.kt`, `jsMain/JsEntry.kt`, `wasmJsMain/WasmEntry.kt`, `macosMain/MacosEntry.kt`, `iosMain/IOSEntry.kt`) each call `NaHalNavigator()`.
+
+### Platform-specific pieces (`:haldish`)
 
 | Source set | Purpose |
 |---|---|
 | `jvmMain` | CIO HTTP engine + kaml for YAML |
 | `jsMain` | ktor-client-js + kaml; exposes `JsHalClient` (Promise-based JS facade) |
-| `wasmJsMain` | ktor-client-js (no kaml); exposes `WasmHalClient` (@JsExport) |
+| `wasmJsMain` | ktor-client-js (no kaml); exposes `WasmHalClient` (`@JsExport`) |
 | `appleMain` | Darwin HTTP engine |
 | `linuxMain` | cURL HTTP engine |
 | `mingwMain` | WinHTTP engine |

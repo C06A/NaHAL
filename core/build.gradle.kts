@@ -1,10 +1,12 @@
 import com.vanniktech.maven.publish.SonatypeHost
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.w3c.dom.Element
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.vanniktech.publish)
+    alias(libs.plugins.kover)
 }
 
 kotlin {
@@ -57,6 +59,104 @@ tasks.withType<JavaCompile>().configureEach {
     if (name == "compileJvmTestJava") {
         source(fileTree("src/test/java"))
         isEnabled = true
+    }
+}
+
+// ── Coverage report ───────────────────────────────────────────────────────────
+
+tasks.register("coverageReport") {
+    group       = "verification"
+    description = "Prints a human-readable summary of the Kover XML coverage report"
+    dependsOn("koverXmlReport")
+
+    doLast {
+        val reportFile = layout.buildDirectory.file("reports/kover/report.xml").get().asFile
+
+        val doc = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+            .newDocumentBuilder().parse(reportFile)
+        doc.documentElement.normalize()
+        val root = doc.documentElement
+
+        fun Element.children(tag: String): List<Element> =
+            (0 until childNodes.length)
+                .map { childNodes.item(it) }
+                .filterIsInstance<Element>()
+                .filter { tagName == tag || it.tagName == tag }
+                .filter { it.parentNode == this }
+
+        data class Counter(val covered: Int, val total: Int) {
+            val pct get() = if (total == 0) 100.0 else covered * 100.0 / total
+        }
+
+        fun Element.counters(): Map<String, Counter> =
+            children("counter").associate { el ->
+                el.getAttribute("type") to Counter(
+                    covered = el.getAttribute("covered").toInt(),
+                    total   = el.getAttribute("covered").toInt() + el.getAttribute("missed").toInt(),
+                )
+            }
+
+        fun bar(pct: Double, width: Int = 25): String {
+            val filled = (pct / 100.0 * width).toInt().coerceIn(0, width)
+            return "█".repeat(filled) + "░".repeat(width - filled)
+        }
+
+        fun row(label: String, c: Counter, labelWidth: Int = 13) =
+            "  %-${labelWidth}s %s  %5.1f%%  (%4d/%4d)".format(
+                label, bar(c.pct), c.pct, c.covered, c.total)
+
+        val sep = "═".repeat(58)
+        println()
+        println("╔$sep╗")
+        println("║${"Coverage Report — :core".padStart(40).padEnd(58)}║")
+        println("╚$sep╝")
+        println()
+
+        println("OVERALL")
+        val overall = root.counters()
+        for (type in listOf("INSTRUCTION", "BRANCH", "LINE", "METHOD", "CLASS")) {
+            overall[type]?.let { println(row(type.lowercase().replaceFirstChar(Char::uppercaseChar), it)) }
+        }
+
+        println()
+        println("BY PACKAGE  (line coverage)")
+
+        val packages = root.children("package").sortedBy { it.getAttribute("name") }
+        val labelWidth = packages.maxOfOrNull { pkg ->
+            pkg.getAttribute("name")
+                .removePrefix("com/helpchoice/nahal/core/")
+                .replace('/', '.')
+                .ifEmpty { "(root)" }.length
+        }?.coerceAtLeast(7) ?: 7
+
+        packages.forEach { pkg ->
+            val name = pkg.getAttribute("name")
+                .removePrefix("com/helpchoice/nahal/core/")
+                .replace('/', '.')
+                .ifEmpty { "(root)" }
+            pkg.counters()["LINE"]?.let { println(row(name, it, labelWidth)) }
+        }
+
+        println()
+        println("BY CLASS  (line coverage)")
+
+        val classLabelWidth = packages.flatMap { it.children("class") }.maxOfOrNull { cls ->
+            cls.getAttribute("name").substringAfterLast('/').length
+        }?.coerceAtLeast(7) ?: 7
+
+        packages.forEach { pkg ->
+            val pkgLabel = pkg.getAttribute("name")
+                .removePrefix("com/helpchoice/nahal/core/")
+                .replace('/', '.')
+                .ifEmpty { "(root)" }
+            pkg.children("class").sortedBy { it.getAttribute("name") }.forEach { cls ->
+                val clsName = cls.getAttribute("name").substringAfterLast('/')
+                cls.counters()["LINE"]?.let {
+                    println(row("$pkgLabel/$clsName", it, classLabelWidth + pkgLabel.length + 1))
+                }
+            }
+        }
+        println()
     }
 }
 

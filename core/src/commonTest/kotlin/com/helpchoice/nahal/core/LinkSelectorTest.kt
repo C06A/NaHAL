@@ -70,4 +70,48 @@ class LinkSelectorTest {
     @Test fun inEmbeddedReturnsNullForOutOfBoundsEmbeddedIndex() {
         assertNull(LinkSelector.InEmbedded("items", embeddedIndex = 99, linkRel = "self").select(doc()))
     }
+
+    // ── InItems ───────────────────────────────────────────────────────────────
+
+    private fun arrayDoc() = HalDocument(
+        items = listOf(
+            HalDocument(links = mapOf("self" to listOf(HalLink("/items/0"), HalLink("/items/0/alt")))),
+            HalDocument(links = mapOf("self" to listOf(HalLink("/items/1")))),
+        )
+    )
+
+    @Test fun inItemsSelectsFirstItemFirstLinkByDefault() {
+        assertEquals("/items/0", LinkSelector.InItems(linkRel = "self").select(arrayDoc())?.href)
+    }
+
+    @Test fun inItemsSelectsByItemIndex() {
+        assertEquals("/items/1", LinkSelector.InItems(itemIndex = 1, linkRel = "self").select(arrayDoc())?.href)
+    }
+
+    @Test fun inItemsSelectsByLinkIndex() {
+        assertEquals("/items/0/alt", LinkSelector.InItems(linkRel = "self", linkIndex = 1).select(arrayDoc())?.href)
+    }
+
+    @Test fun inItemsReturnsNullForOutOfBoundsItemIndex() {
+        assertNull(LinkSelector.InItems(itemIndex = 99, linkRel = "self").select(arrayDoc()))
+    }
+
+    @Test fun inItemsReturnsNullForMissingLinkRel() {
+        assertNull(LinkSelector.InItems(linkRel = "missing").select(arrayDoc()))
+    }
+
+    @Test fun inItemsReturnsNullForOutOfBoundsLinkIndex() {
+        assertNull(LinkSelector.InItems(linkRel = "self", linkIndex = 99).select(arrayDoc()))
+    }
+
+    @Test fun inItemsReturnsNullForEmptyItemsList() {
+        assertNull(LinkSelector.InItems(linkRel = "self").select(HalDocument()))
+    }
+
+    @Test fun inItemsToStringContainsAllFields() {
+        val s = LinkSelector.InItems(itemIndex = 2, linkRel = "next", linkIndex = 1).toString()
+        assertTrue(s.contains("2"))
+        assertTrue(s.contains("next"))
+        assertTrue(s.contains("1"))
+    }
 }
