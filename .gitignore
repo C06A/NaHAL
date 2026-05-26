@@ -21,3 +21,8 @@ Thumbs.db
 local.properties
 *.local.properties
 yarn.lock
+
+# Claude Code — ignore local override file and session log
+.claude/settings.local.json
+.claude/session-log.md
+CLAUDE.local.md
