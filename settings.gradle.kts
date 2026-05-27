@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 include(":haldish")
 include(":core")
+include(":ui")

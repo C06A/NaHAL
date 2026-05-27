@@ -1,0 +1,74 @@
+package com.helpchoice.nahal.ui.model
+
+import com.helpchoice.nahal.haldish.model.HalDocument
+
+data class HistoryNode(
+    val id: String,
+    val url: String,
+    val method: String,
+    val requestHeaders: Map<String, String>,
+    val requestCookies: Map<String, String>,
+    val requestBody: String?,
+    val fromRel: String?,
+    val parentId: String?,
+    val response: FetchedResponse,
+    val elapsedMs: Long,
+    val embeddedRef: EmbeddedRef? = null,
+)
+
+data class FetchedResponse(
+    val status: Int,
+    val statusText: String,
+    val headers: Map<String, String>,
+    val cookies: Map<String, String>,
+    val body: String,
+    val document: HalDocument?,
+)
+
+data class PendingRequest(
+    val url: String,
+    val templated: Boolean = false,
+    val vars: Map<String, String> = emptyMap(),
+    val fromRel: String? = null,
+    val method: String = "GET",
+    val type: String? = null,
+    val headers: Map<String, String> = emptyMap(),
+    val cookies: Map<String, String> = emptyMap(),
+    val body: String = "",
+    val parentId: String? = null,
+)
+
+data class EmbeddedRef(val rel: String, val index: Int)
+
+data class LogEntry(
+    val id: String,
+    val url: String,
+    val method: String,
+    val status: Int,
+)
+
+enum class StatusClass { OK, WARN, ERR, REDIR, INFO }
+
+fun statusClass(code: Int): StatusClass = when {
+    code == 0    -> StatusClass.ERR
+    code >= 500  -> StatusClass.ERR
+    code >= 400  -> StatusClass.WARN
+    code >= 300  -> StatusClass.REDIR
+    code >= 200  -> StatusClass.OK
+    else         -> StatusClass.INFO
+}
+
+fun httpStatusText(code: Int): String = when (code) {
+    200 -> "OK";           201 -> "Created";            202 -> "Accepted"
+    204 -> "No Content";   301 -> "Moved Permanently";  302 -> "Found"
+    304 -> "Not Modified"; 400 -> "Bad Request";         401 -> "Unauthorized"
+    403 -> "Forbidden";    404 -> "Not Found";           405 -> "Method Not Allowed"
+    409 -> "Conflict";     422 -> "Unprocessable Entity"; 429 -> "Too Many Requests"
+    500 -> "Internal Server Error"; 502 -> "Bad Gateway"; 503 -> "Service Unavailable"
+    else -> ""
+}
+
+fun shortenUrl(url: String, maxLen: Int = 26): String {
+    val path = url.replace(Regex("^https?://[^/]+"), "")
+    return if (path.length > maxLen) "…${path.takeLast(maxLen - 1)}" else path.ifEmpty { "/" }
+}
