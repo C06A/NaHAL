@@ -1,0 +1,408 @@
+= Nahal / Haldish
+:toc: left
+:toclevels: 3
+:icons: font
+:source-highlighter: highlight.js
+
+*Haldish* is a https://stateless.group/hal_specification.html[HAL (Hypertext Application Language)] client library for https://kotlinlang.org/docs/multiplatform.html[Kotlin Multiplatform].
+It handles HAL document parsing, RFC 6570 URI template expansion, and HTTP communication on every supported platform.
+
+== Supported Platforms
+
+|===
+| Target | HTTP engine
+
+| JVM
+| Ktor CIO
+
+| JS (IR) — browser + Node.js
+| ktor-client-js
+
+| Wasm/JS — browser
+| ktor-client-js
+
+| macOS x64 / arm64
+| Ktor Darwin
+
+| iOS x64 / arm64 / Simulator arm64
+| Ktor Darwin
+
+| Linux x64 / arm64
+| Ktor cURL
+
+| Windows (mingwX64)
+| Ktor WinHTTP
+|===
+
+YAML HAL format (`application/hal+yaml`) is supported on JVM and JS only. On native and Wasm targets, YAML responses are not parsed.
+
+== Dependency
+
+_Publishing to Maven Central is in progress. Until the first release is available, build from source._
+
+[source,kotlin]
+----
+// build.gradle.kts
+dependencies {
+    implementation("com.helpchoice.nahal:haldish:<version>")
+}
+----
+
+== Quick Start (Kotlin)
+
+[source,kotlin]
+----
+import com.helpchoice.nahal.haldish.http.HalHttpClient
+import com.helpchoice.nahal.haldish.uritemplate.expandHref
+
+// HalHttpClient wraps a Ktor HttpClient and adds HAL-aware helpers.
+// It implements AutoCloseable — use `use` or call close() when done.
+val client = HalHttpClient()
+
+// GET a HAL document (sends Accept: application/hal+json, hal+xml, hal+yaml, …)
+val root: HalDocument = client.getHal("https://api.example.com/")
+
+// Navigate links
+val self: HalLink? = root.link("self")          // first link for rel
+val admins: List<HalLink> = root.links("admin") // all links for rel
+
+// Read embedded resources
+val orders: List<HalDocument> = root.embedded("ea:order")
+
+// Read plain properties
+val count: JsonElement? = root.properties["currentlyProcessing"]
+
+client.close()
+----
+
+=== URI Template Expansion
+
+HAL links can be https://www.rfc-editor.org/rfc/rfc6570[RFC 6570 URI templates].
+Use `expandHref` or `UriTemplate` to expand them before making a request.
+
+[source,kotlin]
+----
+import com.helpchoice.nahal.haldish.uritemplate.UriTemplate
+import com.helpchoice.nahal.haldish.uritemplate.UriTemplateVars
+import com.helpchoice.nahal.haldish.uritemplate.expandHref
+
+// Scalar variable
+val link = root.link("search")!!          // href: "/items{?q,page}"
+val url  = link.expandHref("q" to "hal", "page" to 2)
+// → /items?q=hal&page=2
+
+// List variable
+val vars = UriTemplateVars()
+    .add("name", "Project A")
+    .add("name", "Project B")
+    .set("name_op", "in")
+val filtered = UriTemplate("/items{?name*,name_op}").expand(vars)
+// → /items?name=Project%20A&name=Project%20B&name_op=in
+
+// Expanding with no variables strips all template expressions
+val bare = UriTemplate("/items{?q}").expand()
+// → /items
+----
+
+`UriTemplateVars` supports three value types:
+
+* `set(name, scalar)` — single string value
+* `set(name, list)` / `add(name, value)` — ordered list
+* `set(name, map)` / `put(name, field, value)` — associative map
+
+=== Making Requests
+
+[source,kotlin]
+----
+import com.helpchoice.nahal.haldish.http.HalHttpClient
+import com.helpchoice.nahal.haldish.http.HalRequestBody
+
+val client = HalHttpClient()
+
+// Raw HTTP — returns HalHttpResponse (statusCode, headers, cookies, body, contentType)
+val response = client.get(url)
+val created  = client.post(url, HalRequestBody.Json("""{"name":"foo"}"""))
+val updated  = client.patch(url, HalRequestBody.Json("""{"name":"bar"}"""))
+val deleted  = client.delete(url)
+
+// File upload
+val bytes: ByteArray = java.io.File("photo.jpg").readBytes()
+client.post(url, HalRequestBody.Binary(bytes, "image/jpeg"))
+
+// Multipart
+client.post(url, HalRequestBody.Multipart(listOf(
+    MultipartPart("photo",    photoBytes,    fileName = "photo.jpg",  contentType = "image/jpeg"),
+    MultipartPart("metadata", metaBytes,     contentType = "application/json"),
+)))
+
+// Custom headers and cookies
+client.get(url,
+    headers = mapOf("Authorization" to "Bearer token"),
+    cookies = mapOf("session" to "abc123"),
+)
+
+// GET + parse as HAL in one call (throws HalHttpException on non-2xx)
+val doc: HalDocument = client.getHal(url)
+----
+
+=== Error Handling
+
+All exceptions extend `HaldishException`:
+
+[source,kotlin]
+----
+try {
+    val doc = client.getHal(url)
+} catch (e: HalHttpException) {
+    println("HTTP ${e.statusCode}: ${e.body}")
+} catch (e: HalParseException) {
+    println("Parse error: ${e.message}")
+} catch (e: UriTemplateException) {
+    println("Template error: ${e.message}")
+}
+----
+
+== Java
+
+`HalHttpClient` is usable from Java. Kotlin suspend functions are called via `BuildersKt.runBlocking`:
+
+[source,java]
+----
+try (HalHttpClient client = new HalHttpClient()) {
+    HalDocument root = (HalDocument) BuildersKt.runBlocking(
+        EmptyCoroutineContext.INSTANCE,
+        (scope, cont) -> client.getHal("https://api.example.com/", Map.of(), cont)
+    );
+    String href = root.link("projects").getHref();
+
+    UriTemplateVars vars = new UriTemplateVars()
+        .set("name", Arrays.asList("Project A", "Project B"))
+        .set("name_op", "in");
+    String url = new UriTemplate(href).expand(vars);
+}
+----
+
+A full walkthrough is in link:examples/java/CrudExample.java[].
+
+== JavaScript (Node.js)
+
+Build the JS library:
+
+[source,bash]
+----
+./gradlew :haldish:jsNodeProductionLibrary
+# output: haldish/build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs
+----
+
+[source,javascript]
+----
+import { JsHalClient, JsHeaders, JsMultipartPart } from
+    './haldish/build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs';
+
+const client = new JsHalClient();
+
+// All HTTP methods return Promise<JsResponse> ({ statusCode, body })
+const resp = await client.get('https://api.example.com/');
+const root = JSON.parse(resp.body);
+const tmpl = root._links.projects.href;
+
+// URI template expansion (builder pattern)
+client.varsAdd('name', 'Project A');
+client.varsAdd('name', 'Project B');
+client.varsSet('name_op', 'in');
+const url = client.expandVars(tmpl);   // expands and resets the builder
+
+// Custom headers
+const headers = new JsHeaders()
+    .set('Authorization', 'Bearer token')
+    .set('Accept', 'application/hal+xml');
+const r = await client.get(url, headers);
+
+// File upload (bytes must be Int8Array)
+await client.postFile(url, int8Array, 'image/jpeg');
+
+// Multipart
+const parts = [
+    new JsMultipartPart('photo',    int8Array,  'image/jpeg',       'photo.jpg'),
+    new JsMultipartPart('metadata', metaBytes,  'application/json'),
+];
+await client.postMultipart(url, parts);
+
+client.close();
+----
+
+Full example: link:examples/javascript/crud-example.mjs[].
+
+== WebAssembly (Browser)
+
+Build the Wasm library:
+
+[source,bash]
+----
+./gradlew :haldish:wasmJsBrowserProductionLibrary
+# output: haldish/build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs
+----
+
+The Wasm module must be served over HTTP (not `file://`) because browsers block Wasm loading from local files:
+
+[source,bash]
+----
+npx serve .        # from the repo root
+# open http://localhost:3000/examples/wasm/crud-example.html
+----
+
+Kotlin/Wasm restricts `@JsExport` to functions only (classes are not supported), so the Wasm API is exposed as module-level functions with shared state — the same pattern as the native C API.
+After awaiting any HTTP call, read the result with `wasmLastStatus()` and `wasmLastBody()`.
+
+The generated `.mjs` uses top-level `await` to initialise the Wasm runtime; all exports are ready as soon as the import resolves.
+
+[source,javascript]
+----
+import {
+  wasmGet, wasmPost, wasmPatch, wasmDelete,
+  wasmPostFile, wasmPartAdd, wasmPartsClear, wasmPostMultipart,
+  wasmLastStatus, wasmLastBody,
+  wasmHeaderSet, wasmHeadersClear,
+  wasmVarsSet, wasmVarsAdd, wasmExpandVars,
+  wasmClose,
+} from './haldish/build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs';
+
+// GET — read result after awaiting
+await wasmGet('https://api.example.com/');
+const root = JSON.parse(wasmLastBody());
+const tmpl = root._links.projects.href;
+
+// URI template expansion (builder pattern, same as JS)
+wasmVarsAdd('name', 'Project A');
+wasmVarsAdd('name', 'Project B');
+wasmVarsSet('name_op', 'in');
+const url = wasmExpandVars(tmpl);   // expands and resets the builder
+
+// Custom headers (consumed and cleared after the next HTTP call)
+wasmHeaderSet('Authorization', 'Bearer token');
+wasmHeaderSet('Accept', 'application/hal+xml');
+await wasmGet(url);
+
+// File upload (bytes as Int8Array)
+await wasmPostFile(url, int8Array, 'image/jpeg');
+
+// Multipart
+wasmPartAdd('photo',    int8Array,  'image/jpeg',       'photo.jpg');
+wasmPartAdd('metadata', metaBytes,  'application/json', null);
+await wasmPostMultipart(url);
+
+wasmClose();
+----
+
+Full example: link:examples/wasm/crud-example.html[].
+
+== Native (C / C++)
+
+Build the shared library for your target:
+
+[source,bash]
+----
+# macOS
+./gradlew :haldish:linkReleaseSharedMacosArm64
+# Linux
+./gradlew :haldish:linkReleaseSharedLinuxX64
+# Windows
+./gradlew :haldish:linkReleaseSharedMingwX64
+----
+
+Output (e.g., macOS arm64):
+
+----
+haldish/build/bin/macosArm64/releaseShared/
+  libhaldish_api.h   ← generated C header
+  libhaldish.dylib   ← shared library
+----
+
+Compile and link (macOS example):
+
+[source,bash]
+----
+OUTDIR=haldish/build/bin/macosArm64/releaseShared
+g++ -std=c++17 -o my_app my_app.cpp \
+    -I$OUTDIR -L$OUTDIR -lhaldish -Wl,-rpath,$OUTDIR
+----
+
+The C API (`NativeCApi.kt`) exposes functions via `@CName`:
+
+[source,c]
+----
+// HTTP
+const char* haldish_get(const char* url);
+const char* haldish_post_json(const char* url, const char* json);
+const char* haldish_patch_json(const char* url, const char* json);
+int         haldish_delete(const char* url);
+const char* haldish_post_file(const char* url, int8_t* data, int size, const char* contentType);
+
+// Last-response metadata (read after any HTTP call)
+int         haldish_last_status();
+const char* haldish_last_content_type();
+
+// Request headers (consumed on the next HTTP call)
+void haldish_headers_set(const char* key, const char* value);
+void haldish_headers_clear();
+
+// Multipart builder
+void        haldish_part_add(const char* name, int8_t* data, int size,
+                             const char* contentType, const char* fileName);
+void        haldish_parts_clear();
+const char* haldish_post_multipart(const char* url);
+
+// HAL navigation (parse body, extract links)
+const char* haldish_link_href(const char* body, const char* contentType, const char* rel);
+const char* haldish_first_embedded_self(const char* body, const char* contentType,
+                                        const char* embeddedRel);
+
+// URI template expansion
+const char* haldish_expand(const char* tmpl);           // no variables
+void        haldish_vars_set(const char* key, const char* value);
+void        haldish_vars_add(const char* key, const char* value);
+void        haldish_vars_reset();
+const char* haldish_expand_vars(const char* tmpl);      // expand + reset builder
+
+// Utilities
+const char* haldish_pretty_json(const char* compact);
+----
+
+Full example: link:examples/cpp/crud_example.cpp[].
+
+== HAL Format Detection
+
+When no `Content-Type` header is present, the parser sniffs the body:
+
+|===
+| Starts with | Detected format
+
+| `{` or `[`
+| JSON
+
+| `<`
+| XML
+
+| anything else (non-empty)
+| YAML
+|===
+
+Explicit content types take precedence: `application/hal+json`, `application/json`, `application/hal+xml`, `application/xml`, `text/xml`, `application/hal+yaml`, `application/yaml`, `text/yaml`.
+
+== Building
+
+[source,bash]
+----
+# Build and test (JVM, JS, native for the host platform)
+./gradlew build
+
+# JVM tests only
+./gradlew :haldish:jvmTest
+
+# Coverage report (printed to the console, JVM only)
+./gradlew :haldish:coverageReport
+----
+
+== License
+
+link:https://www.apache.org/licenses/LICENSE-2.0[Apache License 2.0]
