@@ -1,0 +1,10 @@
+# To activate BaseUrlRewriterPlugin via ServiceLoader, replace this file with one containing
+# a concrete subclass that supplies the target base URL, e.g.:
+#   com.example.StagingRewriterPlugin
+#
+# Example subclass:
+#   class StagingRewriterPlugin : BaseUrlRewriterPlugin(
+#       targetBase = System.getenv("TARGET_BASE_URL") ?: "http://localhost:8080"
+#   )
+#
+# This file is intentionally empty so the module compiles without auto-registering itself.

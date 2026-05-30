@@ -33,7 +33,8 @@ class HalHttpClient(
      * operation triggers discovery.
      */
     private val plugin: HaldishPlugin by lazy {
-        (pluginOverride ?: loadPlugin()).also { it.initialize(platformPluginConfig()) }
+        if (pluginOverride != null) pluginOverride
+        else loadPlugin().also { it.initialize(platformPluginConfig()) }
     }
 
     companion object {
@@ -168,7 +169,7 @@ class HalHttpClient(
             response = response,
             message  = "HTTP ${response.statusCode} from $url",
         )
-        val document = HalParser.parse(response.body, response.contentType)
+        val document = HalParser.parse(response.body, response.contentType).copy(sourceUrl = url)
         return plugin.postResponse(document, response)
     }
 
@@ -178,7 +179,7 @@ class HalHttpClient(
             response = response,
             message  = "HTTP ${response.statusCode} from ${request.url}",
         )
-        val document = HalParser.parse(response.body, response.contentType)
+        val document = HalParser.parse(response.body, response.contentType).copy(sourceUrl = request.url)
         return plugin.postResponse(document, response)
     }
 

@@ -97,6 +97,7 @@ interface HaldishPlugin {
 data class HaldishPluginConfig(
     val platform: String,
     val version: String,
+    val properties: Map<String, Any?> = emptyMap(),
 )
 
 /** Default no-op plugin — used when no plugin is discovered on any platform. */

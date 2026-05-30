@@ -5,3 +5,6 @@ sealed class CoreException(message: String, cause: Throwable? = null) :
 
 class NoSuchLinkException(val selector: LinkSelector) :
     CoreException("No link found for selector: $selector")
+
+class PluginConfigException(message: String, cause: Throwable? = null) :
+    CoreException(message, cause)

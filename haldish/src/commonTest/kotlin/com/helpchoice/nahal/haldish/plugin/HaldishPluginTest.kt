@@ -63,29 +63,30 @@ class HaldishPluginTest {
 
     // ── initialize ───────────────────────────────────────────────────────────
 
-    @Test fun initializeIsCalledOnFirstRequest() = runTest {
+    @Test fun initializeNotAutoCalledForPluginOverride() = runTest {
         val plugin = RecordingPlugin()
-        assertNull(plugin.initializedWith, "should not initialize before first request")
         mockClient(plugin).get("https://example.com/")
-        assertNotNull(plugin.initializedWith, "should initialize on first request")
+        // pluginOverride callers are responsible for calling initialize() themselves
+        assertNull(plugin.initializedWith, "HalHttpClient must not call initialize() for pluginOverride")
     }
 
-    @Test fun initializeReceivesPlatformAndVersion() = runTest {
+    @Test fun callerCanInitializePluginBeforeInjecting() = runTest {
         val plugin = RecordingPlugin()
+        plugin.initialize(HaldishPluginConfig("test", "1.0", mapOf("key" to "val")))
         mockClient(plugin).get("https://example.com/")
         val cfg = plugin.initializedWith!!
-        assertTrue(cfg.platform.isNotBlank(), "platform should be non-empty")
-        assertTrue(cfg.version.isNotBlank(),  "version should be non-empty")
+        assertEquals("test", cfg.platform)
+        assertEquals("1.0",  cfg.version)
+        assertEquals("val",  cfg.properties["key"])
     }
 
-    @Test fun initializeIsCalledOnlyOnce() = runTest {
+    @Test fun initializeNotCalledByHalHttpClientRegardlessOfRequestCount() = runTest {
         val plugin = RecordingPlugin()
         val client = mockClient(plugin)
         client.get("https://example.com/")
         client.get("https://example.com/")
         client.get("https://example.com/")
-        // initializedWith is set only once; a list would still have one entry
-        assertNotNull(plugin.initializedWith)
+        assertNull(plugin.initializedWith, "HalHttpClient must not auto-initialize a pluginOverride plugin")
     }
 
     // ── preRequest ───────────────────────────────────────────────────────────

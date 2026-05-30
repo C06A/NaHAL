@@ -62,7 +62,7 @@ node examples/javascript/crud-example.mjs
 This is a Kotlin Multiplatform project with three modules:
 
 - **`:haldish`** — The published library: a HAL (Hypertext Application Language) client supporting JSON, XML, and YAML HAL formats. Targets JVM, JS (IR), WasmJS, Linux (x64/arm64), macOS (x64/arm64), iOS, and Windows.
-- **`:core`** — Higher-level navigation layer built on top of `:haldish`. Provides `HalNavigator`, `LinkSelector`, `NavigationPlugin`, and platform facades. Library module — no application entry point.
+- **`:core`** — Higher-level navigation layer built on top of `:haldish`. Provides `HalNavigator`, `LinkSelector`, and platform facades. Library module — no application entry point.
 - **`:ui`** — Compose Multiplatform desktop/browser/mobile GUI client. Implements the HAL navigator UI (two-pane: traversal rail + resource viewer, accordion panels, request builder, template expander, breadcrumb navigation).
 
 Dependency direction: `:ui` → `:core` → `:haldish` (each module exposes its dependency via `api()`).
@@ -93,15 +93,11 @@ HalNavigator.navigate(resource, selector, method, ...)
        │
        ├── LinkSelector.select(resource)      → HalLink  (TopLevel / InEmbedded / InItems)
        │
-       ├── NavigationPlugin.preRequest(link)  → HalLink  (fold over plugin list)
-       │
        ├── HalHttpClient.resolveLink(...)     → HalLink  (HaldishPlugin.preLink hook)
        │
        ├── HalLink.expandHref(templateVars)   → URL
        │
        ├── HalHttpClient.execute(request)     → HalHttpResponse
-       │
-       ├── NavigationPlugin.postResponse(...) → HalHttpResponse (fold)
        │
        └── HalParser.parse(body, contentType) → HalDocument?
                                                (null if response is not HAL)
@@ -113,11 +109,10 @@ HalNavigator.navigate(resource, selector, method, ...)
 
 | Type | Role |
 |---|---|
-| `HalNavigator` | Main entry point; wraps `HalHttpClient`, applies plugins, returns `NavigationResponse` |
+| `HalNavigator` | Main entry point; wraps `HalHttpClient`, returns `NavigationResponse` |
 | `LinkSelector` | Sealed class — `TopLevel(rel, index)`, `InEmbedded(embeddedRel, embeddedIndex, linkRel, linkIndex)`, `InItems(itemIndex, linkRel, linkIndex)` |
 | `NavigationResponse` | Wraps `HalHttpResponse` + parsed `HalDocument?`; exposes `isHal`, `statusCode`, `isSuccess` |
-| `NavigatorConfig` | `baseUrl`, `defaultHeaders`, `defaultCookies`, `properties` passed to plugins at init |
-| `NavigationPlugin` | Interface: `initialize(config)`, `preRequest(link, resource) → HalLink`, `postResponse(response) → HalHttpResponse` |
+| `NavigatorConfig` | `defaultHeaders`, `defaultCookies` merged into each request |
 | `CoreException` | Sealed base; `NoSuchLinkException(selector)` thrown when `LinkSelector.select` returns null |
 
 #### `:core` platform-specific pieces

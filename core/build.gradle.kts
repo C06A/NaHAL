@@ -44,6 +44,14 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
         }
 
+        jvmMain.dependencies {
+            implementation(libs.kaml)
+        }
+
+        jsMain.dependencies {
+            implementation(libs.kaml)
+        }
+
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.ktor.client.mock)

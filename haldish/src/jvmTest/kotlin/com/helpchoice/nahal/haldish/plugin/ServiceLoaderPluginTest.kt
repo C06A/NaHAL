@@ -35,16 +35,12 @@ class ServiceLoaderPluginTest {
     @Test fun serviceLoaderPluginIsInitializedAndHooksAreCalled() = runTest {
         JvmTestPlugin.reset()
 
-        val plugin = ServiceLoader.load(
-            HaldishPlugin::class.java,
-            Thread.currentThread().contextClassLoader,
-        ).first()
-
         val halJson = """{"_links":{"self":{"href":"/"}}}"""
         val engine = MockEngine { _ ->
             respond(halJson, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/hal+json"))
         }
-        HalHttpClient(HttpClient(engine), pluginOverride = plugin)
+        // No pluginOverride — HalHttpClient discovers JvmTestPlugin via ServiceLoader and calls initialize()
+        HalHttpClient(HttpClient(engine))
             .getHal("https://example.com/")
 
         assertNotNull(JvmTestPlugin.initConfig, "initialize() should have been called")

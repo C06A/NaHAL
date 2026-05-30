@@ -1,5 +1,6 @@
 package com.helpchoice.nahal.core
 
+import com.helpchoice.nahal.core.plugin.buildConfiguredPlugin
 import com.helpchoice.nahal.haldish.HalParseException
 import com.helpchoice.nahal.haldish.http.HalHttpClient
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
@@ -12,12 +13,9 @@ import com.helpchoice.nahal.haldish.uritemplate.expandHref
 import io.ktor.http.HttpMethod
 
 class HalNavigator(
-    private val client: HalHttpClient = HalHttpClient(),
+    private val client: HalHttpClient = HalHttpClient(pluginOverride = buildConfiguredPlugin()),
     val config: NavigatorConfig = NavigatorConfig(),
-    plugins: List<NavigationPlugin> = emptyList(),
 ) : AutoCloseable {
-
-    private val plugins: List<NavigationPlugin> = plugins.onEach { it.initialize(config) }
 
     suspend fun navigate(
         resource: HalDocument,
@@ -29,11 +27,6 @@ class HalNavigator(
         body: HalRequestBody = HalRequestBody.None,
     ): NavigationResponse {
         val baseLink = selector.select(resource) ?: throw NoSuchLinkException(selector)
-
-        // NavigationPlugin fold (core-level link transformation)
-        val navResolvedLink = plugins.fold(baseLink) { link, plugin ->
-            plugin.preRequest(link, resource)
-        }
 
         // Build document context for HaldishPlugin.preLink
         val linkRel: String
@@ -64,7 +57,7 @@ class HalNavigator(
         }
 
         // HaldishPlugin.preLink — user-level hook with full document context
-        val resolvedLink = client.resolveLink(navResolvedLink, linkRel, linkIndex, linkInDocument, linkEmbeddingPath)
+        val resolvedLink = client.resolveLink(baseLink, linkRel, linkIndex, linkInDocument, linkEmbeddingPath)
 
         val url = resolvedLink.expandHref(templateVars.toUriTemplateVars())
 
@@ -78,13 +71,9 @@ class HalNavigator(
 
         val rawResponse = client.execute(request)
 
-        val finalResponse = plugins.fold(rawResponse) { response, plugin ->
-            plugin.postResponse(response)
-        }
-
-        val document = if (finalResponse.isHal) {
+        val document = if (rawResponse.isHal) {
             try {
-                HalParser.parse(finalResponse.body, finalResponse.contentType)
+                HalParser.parse(rawResponse.body, rawResponse.contentType).copy(sourceUrl = url)
             } catch (_: HalParseException) {
                 null
             }
@@ -92,7 +81,7 @@ class HalNavigator(
             null
         }
 
-        return NavigationResponse(raw = finalResponse, document = document)
+        return NavigationResponse(raw = rawResponse, document = document)
     }
 
     override fun close() = client.close()
