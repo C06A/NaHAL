@@ -1,0 +1,8 @@
+# To activate BearerTokenPlugin via ServiceLoader, replace this file with one containing
+# a concrete subclass that supplies the token, e.g.:
+#   com.example.MyBearerTokenPlugin
+#
+# Example subclass:
+#   class MyBearerTokenPlugin : BearerTokenPlugin(token = System.getenv("API_TOKEN") ?: "")
+#
+# This file is intentionally empty so the module compiles without auto-registering itself.
