@@ -21,6 +21,7 @@ include(":ui")
 
 include(":plugins:api-key")
 include(":plugins:chain")
+include(":plugins:curie")
 include(":plugins:bearer-token")
 include(":plugins:base-url-rewriter")
 include(":plugins:logger")
