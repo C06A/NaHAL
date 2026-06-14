@@ -403,6 +403,11 @@ Explicit content types take precedence: `application/hal+json`, `application/jso
 ./gradlew :haldish:coverageReport
 ----
 
+== Related Tools
+
+* https://github.com/C06A/HALDiSh[HALDiSh] — a BASH script implementation of HAL client functionality
+* https://github.com/C06A/MockingHAL[MockingHAL] — a mock HAL server useful for testing plugins
+
 == License
 
 link:https://www.apache.org/licenses/LICENSE-2.0[Apache License 2.0]
