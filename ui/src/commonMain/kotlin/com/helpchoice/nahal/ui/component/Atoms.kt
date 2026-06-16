@@ -18,6 +18,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.helpchoice.nahal.core.DocLinkResolver
+import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
 import com.helpchoice.nahal.ui.NaHalMonoFont
 import com.helpchoice.nahal.ui.NaHalSansFont
@@ -107,14 +109,16 @@ fun resolveUri(base: String, href: String): String {
     return if (href.startsWith('/')) "$origin$href" else "${base.substringBeforeLast('/')}/$href"
 }
 
-fun resolveCurieDocs(rel: String, curies: List<HalLink>): String? {
-    val colonIdx = rel.indexOf(':')
-    if (colonIdx < 0) return null
-    val prefix = rel.substring(0, colonIdx)
-    val suffix = rel.substring(colonIdx + 1)
-    val curie = curies.find { it.name == prefix } ?: return null
-    return curie.href.replace("{rel}", suffix)
-}
+/**
+ * Documentation URL for [rel] given the holding document's [curies], delegating to
+ * [DocLinkResolver] (RFC 6570 expansion, same logic as HALDiSh's `haldoclink.sh`).
+ * Returns `null` when [rel] has no resolvable CURIE prefix.
+ */
+fun resolveCurieDocs(rel: String, curies: List<HalLink>): String? =
+    DocLinkResolver.resolve(
+        rel = rel,
+        inDocument = HalDocument(links = mapOf(DocLinkResolver.CURIES_REL to curies)),
+    )?.href
 
 @Composable
 fun RelChip(rel: String, curies: List<HalLink>, templated: Boolean = false) {
