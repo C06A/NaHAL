@@ -65,6 +65,42 @@ kotlin {
     }
 }
 
+listOf("macosArm64", "macosX64").forEach { target ->
+    val cap = target.replaceFirstChar { it.uppercase() }
+    tasks.register("bundle${cap}App") {
+        dependsOn("linkReleaseExecutable${cap}")
+        doLast {
+            val appDir = layout.buildDirectory.dir("NaHAL.app").get().asFile
+            val macosDir = appDir.resolve("Contents/MacOS")
+            macosDir.mkdirs()
+            val src = layout.buildDirectory.file("bin/$target/releaseExecutable/ui.kexe").get().asFile
+            val dst = macosDir.resolve("NaHAL")
+            src.copyTo(dst, overwrite = true)
+            dst.setExecutable(true)
+            appDir.resolve("Contents/Info.plist").writeText("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                <plist version="1.0">
+                <dict>
+                    <key>CFBundleName</key><string>NaHAL</string>
+                    <key>CFBundleDisplayName</key><string>NaHAL</string>
+                    <key>CFBundleIdentifier</key><string>com.helpchoice.nahal.ui</string>
+                    <key>CFBundleVersion</key><string>1.0</string>
+                    <key>CFBundleExecutable</key><string>NaHAL</string>
+                    <key>NSPrincipalClass</key><string>NSApplication</string>
+                    <key>NSHighResolutionCapable</key><true/>
+                </dict>
+                </plist>
+            """.trimIndent())
+        }
+    }
+    tasks.register<Exec>("run${cap}App") {
+        group = "run"
+        dependsOn("bundle${cap}App")
+        commandLine("open", layout.buildDirectory.dir("NaHAL.app").get().asFile.absolutePath)
+    }
+}
+
 mavenPublishing {
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()

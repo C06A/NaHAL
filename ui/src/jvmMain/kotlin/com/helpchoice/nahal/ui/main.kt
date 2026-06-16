@@ -9,23 +9,26 @@ import com.helpchoice.nahal.ui.component.LocalFilePicker
 import com.helpchoice.nahal.ui.component.PickedFile
 import javax.swing.JFileChooser
 
-fun main() = application {
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "NaHAL",
-        state = rememberWindowState(width = 1280.dp, height = 820.dp),
-    ) {
-        CompositionLocalProvider(
-            LocalFilePicker provides { callback ->
-                val dialog = JFileChooser()
-                callback(
-                    if (dialog.showOpenDialog(null) == JFileChooser.APPROVE_OPTION)
-                        PickedFile(dialog.selectedFile.name, dialog.selectedFile.readText())
-                    else null
-                )
-            }
+fun main() {
+    System.setProperty("apple.awt.application.name", "NaHAL")
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "NaHAL",
+            state = rememberWindowState(width = 1280.dp, height = 820.dp),
         ) {
-            NaHalNavigator()
+            CompositionLocalProvider(
+                LocalFilePicker provides { callback ->
+                    val dialog = JFileChooser()
+                    callback(
+                        if (dialog.showOpenDialog(null) == JFileChooser.APPROVE_OPTION)
+                            PickedFile(dialog.selectedFile.name, dialog.selectedFile.readText())
+                        else null
+                    )
+                }
+            ) {
+                NaHalNavigator()
+            }
         }
     }
 }
