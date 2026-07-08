@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import com.helpchoice.nahal.haldish.http.HalHttpClient
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalRequestBody
+import com.helpchoice.nahal.haldish.http.MultipartPart
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
 import com.helpchoice.nahal.haldish.parser.HalParser
@@ -55,8 +56,17 @@ class NavigatorState(private val scope: CoroutineScope) {
         } else req.headers
         try {
             val bodyObj: HalRequestBody = when {
-                req.body.isNotBlank() && req.method !in setOf("GET", "HEAD", "OPTIONS") ->
-                    HalRequestBody.Text(req.body, "application/json")
+                req.method in setOf("GET", "HEAD", "OPTIONS") -> HalRequestBody.None
+                req.bodyKind == BodyKind.BINARY && req.bodyBytes != null ->
+                    HalRequestBody.Binary(req.bodyBytes, req.bodyContentType)
+                req.bodyKind == BodyKind.MULTIPART && req.parts.isNotEmpty() ->
+                    HalRequestBody.Multipart(req.parts.map { p ->
+                        if (p.isFile) MultipartPart(p.name, p.bytes ?: ByteArray(0),
+                            fileName = p.fileName, contentType = p.contentType)
+                        else MultipartPart(p.name, p.value.encodeToByteArray(),
+                            fileName = null, contentType = p.contentType)
+                    })
+                req.body.isNotBlank() -> HalRequestBody.Text(req.body, "application/json")
                 else -> HalRequestBody.None
             }
             val raw = client.execute(
@@ -78,7 +88,14 @@ class NavigatorState(private val scope: CoroutineScope) {
                 HistoryNode(
                     id = nextId(), url = req.url, method = req.method,
                     requestHeaders = effectiveHeaders, requestCookies = req.cookies,
-                    requestBody = req.body.takeIf { it.isNotBlank() },
+                    requestBody = when {
+                        req.method in setOf("GET", "HEAD", "OPTIONS") -> null
+                        req.bodyKind == BodyKind.BINARY && req.bodyBytes != null ->
+                            "«binary ${req.bodyFileName ?: ""} ${req.bodyBytes.size}B, ${req.bodyContentType}»"
+                        req.bodyKind == BodyKind.MULTIPART && req.parts.isNotEmpty() ->
+                            "«multipart: ${req.parts.size} part(s)»"
+                        else -> req.body.takeIf { it.isNotBlank() }
+                    },
                     fromRel = req.fromRel, parentId = req.parentId ?: current?.id,
                     response = FetchedResponse(
                         status = raw.statusCode,

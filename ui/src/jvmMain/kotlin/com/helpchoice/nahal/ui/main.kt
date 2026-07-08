@@ -7,6 +7,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.helpchoice.nahal.ui.component.LocalFilePicker
 import com.helpchoice.nahal.ui.component.PickedFile
+import com.helpchoice.nahal.ui.component.guessContentType
 import javax.swing.JFileChooser
 
 fun main() {
@@ -21,9 +22,11 @@ fun main() {
                 LocalFilePicker provides { callback ->
                     val dialog = JFileChooser()
                     callback(
-                        if (dialog.showOpenDialog(null) == JFileChooser.APPROVE_OPTION)
-                            PickedFile(dialog.selectedFile.name, dialog.selectedFile.readText())
-                        else null
+                        if (dialog.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                            val file = dialog.selectedFile
+                            val bytes = file.readBytes()
+                            PickedFile(file.name, bytes.decodeToString(), bytes, guessContentType(file.name))
+                        } else null
                     )
                 }
             ) {

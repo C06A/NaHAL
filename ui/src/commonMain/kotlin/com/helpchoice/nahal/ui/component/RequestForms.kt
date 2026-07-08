@@ -20,11 +20,40 @@ import androidx.compose.ui.unit.sp
 import com.helpchoice.nahal.ui.NaHalMonoFont
 import com.helpchoice.nahal.ui.NaHalSansFont
 import com.helpchoice.nahal.ui.LocalNaHalColors
+import com.helpchoice.nahal.ui.model.BodyKind
+import com.helpchoice.nahal.ui.model.BodyPart
 import com.helpchoice.nahal.ui.model.PendingRequest
 import com.helpchoice.nahal.ui.state.expandTemplate
 import com.helpchoice.nahal.ui.state.extractTemplateVars
 
-data class PickedFile(val name: String, val content: String)
+/**
+ * A file chosen by the platform file picker. [content] is its text view; [bytes] the raw bytes
+ * (used for binary/multipart bodies). Both default from each other so text-only providers still
+ * compile, but a provider should populate [bytes] for true binary fidelity.
+ */
+data class PickedFile(
+    val name: String,
+    val content: String,
+    val bytes: ByteArray = content.encodeToByteArray(),
+    val contentType: String = guessContentType(name),
+)
+
+/** Best-effort media type from a file name's extension. */
+fun guessContentType(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
+    "json"          -> "application/json"
+    "hal"           -> "application/hal+json"
+    "xml"           -> "application/xml"
+    "yaml", "yml"   -> "application/x-yaml"
+    "txt"           -> "text/plain"
+    "html", "htm"   -> "text/html"
+    "csv"           -> "text/csv"
+    "pdf"           -> "application/pdf"
+    "png"           -> "image/png"
+    "jpg", "jpeg"   -> "image/jpeg"
+    "gif"           -> "image/gif"
+    "zip"           -> "application/zip"
+    else            -> "application/octet-stream"
+}
 
 val LocalFilePicker = compositionLocalOf<(((PickedFile?) -> Unit) -> Unit)?> { null }
 
@@ -256,71 +285,7 @@ fun RequestBuilder(
                 cookies = request.cookies,
                 onChange = { onChange(request.copy(cookies = it)) },
             )
-            "body" -> {
-                val isBodyMethod = request.method !in setOf("GET", "HEAD", "OPTIONS")
-                val pickFile = LocalFilePicker.current
-                var loadedFileName by remember { mutableStateOf<String?>(null) }
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // "Load from file…" is always visible in the Body tab so users
-                    // can find it without first knowing to change the method.
-                    // Loading a file while on GET/HEAD/OPTIONS auto-switches to POST.
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (loadedFileName != null) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = loadedFileName!!,
-                                    color = c.text3,
-                                    fontSize = 11.sp,
-                                    fontFamily = NaHalMonoFont,
-                                )
-                                Text(
-                                    text = "×",
-                                    color = c.text3,
-                                    fontSize = 16.sp,
-                                    modifier = Modifier.clickable {
-                                        loadedFileName = null
-                                        onChange(request.copy(body = ""))
-                                    },
-                                )
-                            }
-                        } else {
-                            Spacer(Modifier)
-                        }
-                        if (pickFile != null) {
-                            NaHalButton(
-                                text = "Load from file…",
-                                primary = false,
-                                onClick = {
-                                    pickFile { f ->
-                                        if (f != null) {
-                                            loadedFileName = f.name
-                                            val newMethod = if (isBodyMethod) request.method else "POST"
-                                            onChange(request.copy(body = f.content, method = newMethod))
-                                        }
-                                    }
-                                },
-                            )
-                        }
-                    }
-                    NaHalTextField(
-                        value = request.body,
-                        onValueChange = { onChange(request.copy(body = it)) },
-                        modifier = Modifier.fillMaxWidth().height(150.dp),
-                        enabled = isBodyMethod,
-                        placeholder = if (isBodyMethod) "{ \"key\": \"value\" }"
-                                      else "No body for ${request.method}",
-                        singleLine = false,
-                    )
-                }
-            }
+            "body" -> BodyEditor(request, onChange, LocalFilePicker.current)
         }
 
         // Footer
@@ -437,7 +402,160 @@ private fun CookiesEditor(
     }
 }
 
-// ── Shared atoms for forms ────────────────────────────────────────────────────
+// ── Body editor: text, binary file, or multipart ───────────────────────────────
+
+@Composable
+private fun BodyEditor(
+    request: PendingRequest,
+    onChange: (PendingRequest) -> Unit,
+    pickFile: (((PickedFile?) -> Unit) -> Unit)?,
+) {
+    val c = LocalNaHalColors.current
+    val isBodyMethod = request.method !in setOf("GET", "HEAD", "OPTIONS")
+    // Choosing a body/file while on a bodyless method auto-switches to POST.
+    val bodyMethod = if (isBodyMethod) request.method else "POST"
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            BodyKind.entries.forEach { k ->
+                val active = request.bodyKind == k
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (active) c.accent else c.bg2)
+                        .clickable { onChange(request.copy(bodyKind = k, method = bodyMethod)) }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = k.name.lowercase().replaceFirstChar { it.uppercase() },
+                        color = if (active) c.bg else c.text3,
+                        fontSize = 11.sp, fontFamily = NaHalMonoFont,
+                    )
+                }
+            }
+        }
+
+        when (request.bodyKind) {
+            BodyKind.TEXT -> {
+                if (pickFile != null) {
+                    NaHalButton(text = "Load from file…", primary = false, onClick = {
+                        pickFile { f -> if (f != null) onChange(request.copy(body = f.content, method = bodyMethod)) }
+                    })
+                }
+                NaHalTextField(
+                    value = request.body,
+                    onValueChange = { onChange(request.copy(body = it)) },
+                    modifier = Modifier.fillMaxWidth().height(150.dp),
+                    enabled = isBodyMethod,
+                    placeholder = if (isBodyMethod) "{ \"key\": \"value\" }" else "No body for ${request.method}",
+                    singleLine = false,
+                )
+            }
+
+            BodyKind.BINARY -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = request.bodyFileName?.let { "$it  (${request.bodyBytes?.size ?: 0} B)" }
+                            ?: "No file chosen",
+                        color = c.text3, fontSize = 11.sp, fontFamily = NaHalMonoFont,
+                    )
+                    if (pickFile != null) {
+                        NaHalButton(text = "Choose file…", primary = false, onClick = {
+                            pickFile { f ->
+                                if (f != null) onChange(request.copy(
+                                    bodyBytes = f.bytes, bodyFileName = f.name,
+                                    bodyContentType = f.contentType, method = bodyMethod,
+                                ))
+                            }
+                        })
+                    }
+                }
+                NaHalTextField(
+                    value = request.bodyContentType,
+                    onValueChange = { onChange(request.copy(bodyContentType = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "content-type",
+                )
+            }
+
+            BodyKind.MULTIPART -> MultipartEditor(request, onChange, pickFile, bodyMethod)
+        }
+    }
+}
+
+@Composable
+private fun MultipartEditor(
+    request: PendingRequest,
+    onChange: (PendingRequest) -> Unit,
+    pickFile: (((PickedFile?) -> Unit) -> Unit)?,
+    method: String,
+) {
+    val c = LocalNaHalColors.current
+    fun updatePart(i: Int, f: (BodyPart) -> BodyPart) =
+        onChange(request.copy(parts = request.parts.toMutableList().also { it[i] = f(it[i]) }, method = method))
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        request.parts.forEachIndexed { i, part ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NaHalTextField(
+                    value = part.name,
+                    onValueChange = { v -> updatePart(i) { it.copy(name = v) } },
+                    modifier = Modifier.width(84.dp),
+                    placeholder = "name",
+                )
+                if (part.isFile) {
+                    Text(
+                        text = part.fileName?.let { "$it (${part.bytes?.size ?: 0} B)" } ?: "no file",
+                        color = c.text3, fontSize = 11.sp, fontFamily = NaHalMonoFont,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (pickFile != null) {
+                        NaHalButton(text = "File…", primary = false, onClick = {
+                            pickFile { f ->
+                                if (f != null) updatePart(i) {
+                                    it.copy(fileName = f.name, bytes = f.bytes, contentType = f.contentType)
+                                }
+                            }
+                        })
+                    }
+                } else {
+                    NaHalTextField(
+                        value = part.value,
+                        onValueChange = { v -> updatePart(i) { it.copy(value = v) } },
+                        modifier = Modifier.weight(1f),
+                        placeholder = "value",
+                    )
+                }
+                Text(
+                    text = "×", color = c.text3, fontSize = 16.sp,
+                    modifier = Modifier.clickable {
+                        onChange(request.copy(parts = request.parts.filterIndexed { j, _ -> j != i }))
+                    },
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            NaHalButton(text = "+ field", primary = false, onClick = {
+                onChange(request.copy(parts = request.parts + BodyPart(isFile = false), method = method))
+            })
+            NaHalButton(text = "+ file", primary = false, onClick = {
+                onChange(request.copy(
+                    parts = request.parts + BodyPart(isFile = true, contentType = "application/octet-stream"),
+                    method = method,
+                ))
+            })
+        }
+    }
+}
 
 @Composable
 fun NaHalTextField(
