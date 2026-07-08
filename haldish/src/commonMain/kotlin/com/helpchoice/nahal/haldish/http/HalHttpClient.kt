@@ -87,16 +87,15 @@ class HalHttpClient(
                     setBody(io.ktor.client.request.forms.MultiPartFormDataContent(
                         io.ktor.client.request.forms.formData {
                             b.parts.forEach { part ->
-                                if (part.fileName != null) {
-                                    append(part.name, part.bytes,
-                                        Headers.build {
+                                append(part.name, part.bytes,
+                                    Headers.build {
+                                        // File parts carry a filename; key-value fields do not.
+                                        if (part.fileName != null) {
                                             append(HttpHeaders.ContentDisposition,
                                                 "filename=\"${part.fileName}\"")
-                                            append(HttpHeaders.ContentType, part.contentType)
-                                        })
-                                } else {
-                                    append(part.name, part.bytes)
-                                }
+                                        }
+                                        append(HttpHeaders.ContentType, part.contentType)
+                                    })
                             }
                         }
                     ))

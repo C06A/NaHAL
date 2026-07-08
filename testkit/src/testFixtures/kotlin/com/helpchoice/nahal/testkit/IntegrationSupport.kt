@@ -1,8 +1,6 @@
 package com.helpchoice.nahal.testkit
 
 import com.helpchoice.nahal.haldish.http.HalHttpClient
-import com.helpchoice.nahal.haldish.http.HalRequestBody
-import com.helpchoice.nahal.haldish.http.MultipartPart
 import java.io.File
 
 /**
@@ -61,29 +59,25 @@ object IntegrationSupport {
         // 2. delete it
         start.send("DELETE", "self")
 
-        // 3. recreate it from hal_root.yaml
+        // 3. recreate it from hal_root.yaml (a file body)
         start.send(
             "POST", "self",
-            SendOptions(body = HalRequestBody.FilePath(
-                fixture(dir, "hal_root.yaml").path, "application/hal+yaml")),
+            SendOptions(body = Body.file(fixture(dir, "hal_root.yaml").path, "application/hal+yaml")),
         )
 
-        // 4. patch it with a multipart body of hal_templated.yml + hal-json.json
+        // 4. patch it with a multipart body carrying two files
         start.send(
             "PATCH", "self",
-            SendOptions(body = HalRequestBody.Multipart(listOf(
-                MultipartPart("templated", fixture(dir, "hal_templated.yml").readBytes(),
-                    fileName = "hal_templated.yml", contentType = "application/hal+yaml"),
-                MultipartPart("json", fixture(dir, "hal-json.json").readBytes(),
-                    fileName = "hal-json.json", contentType = "application/hal+json"),
-            ))),
+            SendOptions(body = Body.multipart {
+                file("templated", fixture(dir, "hal_templated.yml").path, "application/hal+yaml")
+                file("json", fixture(dir, "hal-json.json").path, "application/hal+json")
+            }),
         )
 
-        // 5. patch it with hal_embedded.json
+        // 5. patch it with hal_embedded.json (a file body)
         start.send(
             "PATCH", "self",
-            SendOptions(body = HalRequestBody.FilePath(
-                fixture(dir, "hal_embedded.json").path, "application/hal+json")),
+            SendOptions(body = Body.file(fixture(dir, "hal_embedded.json").path, "application/hal+json")),
         )
 
         // fetch the seeded root for navigation
