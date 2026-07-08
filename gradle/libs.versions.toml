@@ -9,6 +9,9 @@ xmlutil               = "0.90.3"
 kaml                  = "0.67.0"
 kover                 = "0.9.1"
 kotlinx-browser       = "0.3"
+groovy                = "4.0.24"
+spock                 = "2.3-groovy-4.0"
+junit                 = "5.10.2"
 
 [libraries]
 ktor-client-core                  = { module = "io.ktor:ktor-client-core",                  version.ref = "ktor" }
@@ -27,6 +30,9 @@ kaml                              = { module = "com.charleskorn.kaml:kaml",     
 ktor-client-mock                  = { module = "io.ktor:ktor-client-mock",                          version.ref = "ktor"    }
 kotlinx-coroutines-test           = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test",      version.ref = "kotlinx-coroutines" }
 kotlinx-browser                   = { module = "org.jetbrains.kotlinx:kotlinx-browser",               version.ref = "kotlinx-browser"    }
+groovy                            = { module = "org.apache.groovy:groovy",                            version.ref = "groovy"  }
+spock-core                        = { module = "org.spockframework:spock-core",                       version.ref = "spock"   }
+junit-jupiter                     = { module = "org.junit.jupiter:junit-jupiter",                     version.ref = "junit"   }
 
 [plugins]
 kotlin-multiplatform  = { id = "org.jetbrains.kotlin.multiplatform",          version.ref = "kotlin" }
