@@ -25,6 +25,19 @@ data class FetchedResponse(
     val document: HalDocument?,
 )
 
+/** How the request body is built in the request editor. */
+enum class BodyKind { TEXT, BINARY, MULTIPART }
+
+/** One multipart entry — a key-value [field][isFile]=false or a picked file [isFile]=true. */
+data class BodyPart(
+    val name: String = "",
+    val isFile: Boolean = false,
+    val value: String = "",                       // field value (text)
+    val fileName: String? = null,                 // file part
+    val bytes: ByteArray? = null,                 // file part contents
+    val contentType: String = "text/plain",
+)
+
 data class PendingRequest(
     val url: String,
     val templated: Boolean = false,
@@ -36,6 +49,12 @@ data class PendingRequest(
     val cookies: Map<String, String> = emptyMap(),
     val body: String = "",
     val parentId: String? = null,
+    // ── non-text bodies ──
+    val bodyKind: BodyKind = BodyKind.TEXT,
+    val bodyBytes: ByteArray? = null,             // BINARY body
+    val bodyFileName: String? = null,
+    val bodyContentType: String = "application/octet-stream",
+    val parts: List<BodyPart> = emptyList(),      // MULTIPART body
 )
 
 data class EmbeddedRef(val rel: String, val index: Int)

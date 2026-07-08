@@ -5,7 +5,11 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.CanvasBasedWindow
 import com.helpchoice.nahal.ui.component.LocalFilePicker
 import com.helpchoice.nahal.ui.component.PickedFile
+import com.helpchoice.nahal.ui.component.guessContentType
 import kotlinx.browser.document
+import org.khronos.webgl.ArrayBuffer
+import org.khronos.webgl.Int8Array
+import org.khronos.webgl.get
 import org.w3c.dom.HTMLInputElement
 import org.w3c.files.FileReader
 import org.w3c.files.get
@@ -80,9 +84,14 @@ private fun openFilePickerOverlay(callback: (PickedFile?) -> Unit) {
         val file = fileInput.files?.get(0)
         if (file != null) {
             val reader = FileReader()
-            reader.onload = { _ -> close(); callback(PickedFile(file.name, reader.result as String)) }
+            reader.onload = { _ ->
+                close()
+                val arr = Int8Array(reader.result as ArrayBuffer)
+                val bytes = ByteArray(arr.length) { arr[it] }
+                callback(PickedFile(file.name, bytes.decodeToString(), bytes, guessContentType(file.name)))
+            }
             reader.onerror = { _ -> close(); callback(null) }
-            reader.readAsText(file)
+            reader.readAsArrayBuffer(file)
         } else {
             close()
             callback(null)
