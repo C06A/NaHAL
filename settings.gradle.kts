@@ -18,6 +18,8 @@ dependencyResolutionManagement {
 include(":haldish")
 include(":core")
 include(":ui")
+include(":testkit")
+include(":testkit-groovy")
 
 include(":plugins:api-key")
 include(":plugins:chain")
