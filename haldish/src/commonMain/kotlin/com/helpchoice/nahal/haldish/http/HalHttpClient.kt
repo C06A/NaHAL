@@ -12,6 +12,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.*
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.*
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.http.content.ByteArrayContent
@@ -103,6 +104,9 @@ class HalHttpClient(
             }
         }
 
+        // Read raw bytes first, then the text view — Ktor's default in-memory body caching
+        // lets both be taken from the same saved response.
+        val rawBytes    = ktorResponse.readRawBytes()
         val body        = ktorResponse.bodyAsText()
         val status      = ktorResponse.status.value
         val contentType = ktorResponse.headers[HttpHeaders.ContentType]
@@ -117,6 +121,7 @@ class HalHttpClient(
             cookies     = cookies,
             body        = body,
             contentType = contentType,
+            bytes       = rawBytes,
         )
     }
 
