@@ -7,6 +7,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 
 /**
@@ -33,6 +34,7 @@ object MockApi {
             "widget":     { "href": "ord:widget" },
             "safe":       { "href": "[ord:widget]" },
             "uploads":    { "href": "http://api/uploads" },
+            "echo":       { "href": "http://api/echo" },
             "secure":     { "href": "http://api/secure" },
             "doc:orders": { "href": "http://api/orders" },
             "CURIE":      [ { "name": "ord", "href": "http://api/orders/" } ],
@@ -67,6 +69,13 @@ object MockApi {
                 method == "GET" && path == "/orders/widget" ->
                     respond("""{"kind": "widget"}""", HttpStatusCode.OK,
                         headersOf(HttpHeaders.ContentType, HAL))
+
+                // Echoes the request body bytes back — verifies binary/text/bytes file bodies.
+                method == "POST" && path == "/echo" -> {
+                    val ct = request.body.contentType?.toString() ?: "application/octet-stream"
+                    val bytes = (request.body as? OutgoingContent.ByteArrayContent)?.bytes() ?: ByteArray(0)
+                    respond(bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ct))
+                }
 
                 method == "POST" && path == "/uploads" -> {
                     val isMultipart = request.body.contentType?.match(ContentType.MultiPart.FormData) == true

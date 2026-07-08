@@ -124,6 +124,42 @@ class CrudTest {
         assertEquals(true, response.asHal()["uploaded"])
     }
 
+    // ── request bodies: binary file, text file, multipart of files + key-value fields ────────
+
+    @Test
+    fun postsBinaryFileBody() {
+        val file = File.createTempFile("testkit", ".bin").also { it.deleteOnExit() }
+        val payload = byteArrayOf(0, 1, 2, 3, 127, -1)
+        file.writeBytes(payload)
+
+        val response = MockApi.root().send("POST", "echo", SendOptions(body = Body.file(file)))
+        assertContentEquals(payload, response.asBytes())
+    }
+
+    @Test
+    fun postsTextFileBody() {
+        val file = File.createTempFile("testkit", ".txt").also { it.deleteOnExit() }
+        file.writeText("hello from a file")
+
+        val response = MockApi.root().send("POST", "echo",
+            SendOptions(body = Body.textFile(file, "text/plain")))
+        assertEquals("hello from a file", response.asText())
+    }
+
+    @Test
+    fun postsMultipartWithFilesAndFields() {
+        val a = File.createTempFile("part-a", ".txt").also { it.deleteOnExit(); it.writeText("AAA") }
+        val b = File.createTempFile("part-b", ".bin").also { it.deleteOnExit(); it.writeBytes(byteArrayOf(9, 8, 7)) }
+
+        val body = Body.multipart {
+            field("purpose", "seed")
+            file("fileA", a.path, "text/plain")
+            file("fileB", b.path, "application/octet-stream")
+        }
+        val response = MockApi.root().send("POST", "uploads", SendOptions(body = body))
+        assertEquals(201, response.code)
+    }
+
     // ── body as bytes / file ─────────────────────────────────────────────────────────────────
 
     @Test

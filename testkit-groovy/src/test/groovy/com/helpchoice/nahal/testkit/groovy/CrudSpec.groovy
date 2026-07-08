@@ -1,5 +1,6 @@
 package com.helpchoice.nahal.testkit.groovy
 
+import com.helpchoice.nahal.testkit.Body
 import com.helpchoice.nahal.testkit.MapCredentialsProvider
 import com.helpchoice.nahal.testkit.MockApi
 import com.helpchoice.nahal.testkit.NoSession
@@ -93,6 +94,30 @@ class CrudSpec extends Specification {
         expect:
         root.expandedHref('safe') == 'http://api/orders/widget'
         root.expandedHref('widget') == 'http://api/orders/widget'
+    }
+
+    def "posts a binary file body"() {
+        given:
+        def f = File.createTempFile('part', '.bin'); f.deleteOnExit()
+        f.bytes = [1, 2, 3, 4] as byte[]
+
+        when:
+        def resp = root().send('POST', 'echo', [body: Body.INSTANCE.file(f)])
+
+        then:
+        resp.asBytes() == ([1, 2, 3, 4] as byte[])
+    }
+
+    def "posts multipart with files and key-value fields"() {
+        given:
+        def a = File.createTempFile('part-a', '.txt'); a.deleteOnExit(); a.text = 'AAA'
+        def body = Body.INSTANCE.multipart({ it.field('purpose', 'seed'); it.file('fileA', a.path, 'text/plain', 'a.txt') })
+
+        when:
+        def resp = root().send('POST', 'uploads', [body: body])
+
+        then:
+        resp.code == 201
     }
 
     def "resolves documentation from curies for a rel"() {

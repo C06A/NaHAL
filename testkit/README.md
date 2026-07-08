@@ -24,6 +24,10 @@ It wraps `:haldish` (the HAL client) and adds:
   from the link's declared type).
 - **Documentation** — `HalResource.doc(rel)` / `openDoc(rel)` resolve a rel's documentation link
   from the HAL-spec `curies` (reusing `:core`'s `DocLinkResolver`).
+- **Request bodies** — `Body` builds a `SendOptions.body`: `Body.text(...)`, `Body.json(...)`,
+  `Body.bytes(...)`, `Body.file(path)` (**binary** file), `Body.textFile(path)` (file read as
+  text), and `Body.multipart { field("k","v"); file("cfg", path, "application/hal+yaml") }` to
+  submit **several files plus key-value fields** in one request.
 - **`Response`** — `code`, `headers`, `cookies`, and the body as `asText()`, `asBytes()`,
   `asFile(file)`, or `asHal()` (a navigable `HalResource`).
 
@@ -36,6 +40,14 @@ root.embedded("orders", mapOf("id" to 2))!!["total"] // embedded by discriminato
 val orders = root.send("GET", "orders", SendOptions(vars = mapOf("page" to 2))).asHal()
 root.send("REPORT", "self").asText()                 // arbitrary method
 root.doc("orders")?.href                             // documentation link from curies
+
+// request bodies: binary file, or multipart with several files + key-value fields
+root.send("POST", "config", SendOptions(body = Body.file("/path/hal_root.yaml", "application/hal+yaml")))
+root.send("PATCH", "config", SendOptions(body = Body.multipart {
+    field("purpose", "seed")
+    file("templated", "/path/hal_templated.yml", "application/hal+yaml")
+    file("json", "/path/hal-json.json", "application/hal+json")
+}))
 ```
 
 ## Groovy / Spock
