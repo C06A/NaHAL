@@ -2,6 +2,7 @@ package com.helpchoice.nahal.plugin.baseurlrewriter
 
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -17,9 +18,8 @@ class BaseUrlRewriterPluginTest {
     private fun rewrite(linkHref: String, inDocument: HalDocument): String =
         plugin.preLink(
             link = HalLink(href = linkHref),
-            rel = "next",
-            linkIndex = 0,
-            inDocument = inDocument,
+            path = ResourcePath.link("next"),
+            rootDocument = inDocument,
         ).href
 
     // ── self link matches tail of sourceUrl → prefix preserved ───────────────
@@ -193,7 +193,7 @@ class BaseUrlRewriterPluginTest {
         val d = doc("https://gw.example.com/v2/orders/123/item", selfHref = "/items/321")
         assertEquals(
             "https://gw.example.com/v2/orders",
-            p.preLink(link = HalLink(href = "/orders"), rel = "collection", linkIndex = 0, inDocument = d).href,
+            p.preLink(link = HalLink(href = "/orders"), path = ResourcePath.link("collection"), rootDocument = d).href,
         )
     }
 
@@ -203,7 +203,7 @@ class BaseUrlRewriterPluginTest {
         val d = doc("https://gw.example.com/v2/orders/123")
         assertEquals(
             "https://gw.example.com/v2/customers/456",
-            p.preLink(link = HalLink(href = "/customers/456"), rel = "next", linkIndex = 0, inDocument = d).href,
+            p.preLink(link = HalLink(href = "/customers/456"), path = ResourcePath.link("next"), rootDocument = d).href,
         )
     }
 
@@ -213,11 +213,11 @@ class BaseUrlRewriterPluginTest {
     fun cachesDerivedBaseForSubsequentRequests() {
         val p = BaseUrlRewriterPlugin()
         val getDoc = doc("https://gw.example.com/v2/orders/123", selfHref = "/orders/123")
-        p.preLink(link = HalLink(href = "/x"), rel = "x", linkIndex = 0, inDocument = getDoc)
+        p.preLink(link = HalLink(href = "/x"), path = ResourcePath.link("x"), rootDocument = getDoc)
         val postDoc = doc("https://gw.example.com/v2/orders/123/item", selfHref = "/items/321")
         assertEquals(
             "https://gw.example.com/v2/orders",
-            p.preLink(link = HalLink(href = "/orders"), rel = "collection", linkIndex = 0, inDocument = postDoc).href,
+            p.preLink(link = HalLink(href = "/orders"), path = ResourcePath.link("collection"), rootDocument = postDoc).href,
         )
     }
 
@@ -225,11 +225,11 @@ class BaseUrlRewriterPluginTest {
     fun updatesCacheWhenBetterBaseIsDerived() {
         val p = BaseUrlRewriterPlugin(configuredBase = "https://gw.example.com/v1")
         val getDoc = doc("https://gw.example.com/v2/orders/123", selfHref = "/orders/123")
-        p.preLink(link = HalLink(href = "/x"), rel = "x", linkIndex = 0, inDocument = getDoc)
+        p.preLink(link = HalLink(href = "/x"), path = ResourcePath.link("x"), rootDocument = getDoc)
         val postDoc = doc("https://gw.example.com/v2/items", selfHref = "/items/321")
         assertEquals(
             "https://gw.example.com/v2/customers",
-            p.preLink(link = HalLink(href = "/customers"), rel = "col", linkIndex = 0, inDocument = postDoc).href,
+            p.preLink(link = HalLink(href = "/customers"), path = ResourcePath.link("col"), rootDocument = postDoc).href,
         )
     }
 }

@@ -4,7 +4,7 @@ import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalHttpResponse
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
-import com.helpchoice.nahal.haldish.plugin.EmbeddingStep
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import com.helpchoice.nahal.haldish.plugin.HaldishPluginConfig
 
@@ -42,12 +42,10 @@ class ChainPlugin(vararg plugins: HaldishPlugin) : HaldishPlugin {
 
     override fun preLink(
         link: HalLink,
-        rel: String,
-        linkIndex: Int,
-        inDocument: HalDocument,
-        embeddingPath: List<EmbeddingStep>,
+        path: ResourcePath,
+        rootDocument: HalDocument,
     ): HalLink =
-        plugins.fold(link) { l, plugin -> plugin.preLink(l, rel, linkIndex, inDocument, embeddingPath) }
+        plugins.fold(link) { l, plugin -> plugin.preLink(l, path, rootDocument) }
 
     override fun preRequest(request: HalHttpRequest): HalHttpRequest =
         plugins.fold(request) { req, plugin -> plugin.preRequest(req) }

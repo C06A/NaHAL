@@ -4,7 +4,7 @@ import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalHttpResponse
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
-import com.helpchoice.nahal.haldish.plugin.EmbeddingStep
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import com.helpchoice.nahal.haldish.plugin.HaldishPluginConfig
 import kotlinx.serialization.json.JsonObject
@@ -34,10 +34,8 @@ class ChainPluginTest {
     private fun linkTracePlugin(tag: String) = object : HaldishPlugin {
         override fun preLink(
             link: HalLink,
-            rel: String,
-            linkIndex: Int,
-            inDocument: HalDocument,
-            embeddingPath: List<EmbeddingStep>,
+            path: ResourcePath,
+            rootDocument: HalDocument,
         ): HalLink = link.copy(name = (link.name ?: "") + tag)
     }
 
@@ -61,52 +59,36 @@ class ChainPluginTest {
         assertEquals(req, chain.preRequest(req))
         assertEquals(dummyDocument, chain.postResponse(dummyDocument, dummyResponse))
         val link = HalLink(href = "https://example.com")
-        assertEquals(link, chain.preLink(link, "self", 0, dummyDocument, emptyList()))
+        assertEquals(link, chain.preLink(link, ResourcePath.link("self"), dummyDocument))
     }
 
     @Test
     fun preLinkAppliedInOrder() {
         val chain = ChainPlugin(linkTracePlugin("A"), linkTracePlugin("B"), linkTracePlugin("C"))
         val link = HalLink(href = "https://example.com")
-        val result = chain.preLink(link, "self", 0, dummyDocument, emptyList())
+        val result = chain.preLink(link, ResourcePath.link("self"), dummyDocument)
         assertEquals("ABC", result.name)
     }
 
     @Test
     fun preLinkPassesContextUnchanged() {
-        val parentDoc = HalDocument()
-        val step = EmbeddingStep("orders", 1, parentDoc)
-        var capturedRel: String? = null
-        var capturedLinkIndex: Int? = null
-        var capturedDoc: HalDocument? = null
-        var capturedPath: List<EmbeddingStep>? = null
+        val path = ResourcePath.link("ea:orders", 2)
+        var capturedPath: ResourcePath? = null
+        var capturedRoot: HalDocument? = null
         val spy = object : HaldishPlugin {
             override fun preLink(
-                link: HalLink, rel: String, linkIndex: Int,
-                inDocument: HalDocument, embeddingPath: List<EmbeddingStep>,
+                link: HalLink, path: ResourcePath, rootDocument: HalDocument,
             ): HalLink {
-                capturedRel = rel
-                capturedLinkIndex = linkIndex
-                capturedDoc = inDocument
-                capturedPath = embeddingPath
+                capturedPath = path
+                capturedRoot = rootDocument
                 return link
             }
         }
         val chain = ChainPlugin(spy)
-        chain.preLink(HalLink(href = "https://example.com"), "ea:orders", 2, dummyDocument, listOf(step))
-        assertEquals("ea:orders", capturedRel)
-        assertEquals(2, capturedLinkIndex)
-        assertEquals(dummyDocument, capturedDoc)
-        assertEquals(listOf(step), capturedPath)
-    }
-
-    @Test
-    fun embeddingStepCarriesIndex() {
-        val parentDoc = HalDocument()
-        val step = EmbeddingStep(rel = "items", index = 3, inDocument = parentDoc)
-        assertEquals("items", step.rel)
-        assertEquals(3, step.index)
-        assertEquals(parentDoc, step.inDocument)
+        chain.preLink(HalLink(href = "https://example.com"), path, dummyDocument)
+        assertEquals(path, capturedPath)
+        assertEquals("ea:orders", capturedPath?.terminalRel)
+        assertEquals(dummyDocument, capturedRoot)
     }
 
     @Test

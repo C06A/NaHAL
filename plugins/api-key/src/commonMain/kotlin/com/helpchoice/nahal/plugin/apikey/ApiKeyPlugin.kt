@@ -2,6 +2,7 @@ package com.helpchoice.nahal.plugin.apikey
 
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
+import com.helpchoice.nahal.haldish.plugin.HaldishPluginConfig
 
 /**
  * HALDiSh plugin that adds a static API-key header to every outgoing request.
@@ -20,13 +21,36 @@ import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
  * ```
  * Or combine with other plugins via [com.helpchoice.nahal.plugin.chain.ChainPlugin].
  *
- * @param apiKey      The API key value to send.
- * @param headerName  HTTP header name to use (default `X-Api-Key`).
+ * ### Config file
+ * ```yaml
+ * com:
+ *   helpchoice:
+ *     nahal:
+ *       plugin:
+ *         apikey:
+ *           ApiKeyPlugin:
+ *             apiKey: secret
+ *             headerName: X-Api-Key   # optional, default: X-Api-Key
+ * ```
+ *
+ * @param apiKey      The API key value to send; overridden by config `apiKey` property.
+ * @param headerName  HTTP header name to use; overridden by config `headerName` property.
  */
 class ApiKeyPlugin(
-    val apiKey: String,
-    val headerName: String = "X-Api-Key",
+    apiKey: String = "",
+    headerName: String = "X-Api-Key",
 ) : HaldishPlugin {
+
+    var apiKey: String = apiKey
+        private set
+
+    var headerName: String = headerName
+        private set
+
+    override fun initialize(config: HaldishPluginConfig) {
+        config.properties["apiKey"]?.toString()?.let { apiKey = it }
+        config.properties["headerName"]?.toString()?.let { headerName = it }
+    }
 
     override fun preRequest(request: HalHttpRequest): HalHttpRequest =
         request.copy(headers = request.headers + (headerName to apiKey))
