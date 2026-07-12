@@ -6,8 +6,8 @@ import com.helpchoice.nahal.haldish.http.HalHttpClient
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.haldish.model.HalDocument
+import com.helpchoice.nahal.haldish.model.HalLink
 import com.helpchoice.nahal.haldish.parser.HalParser
-import com.helpchoice.nahal.haldish.plugin.EmbeddingStep
 import com.helpchoice.nahal.haldish.uritemplate.UriTemplateVars
 import com.helpchoice.nahal.haldish.uritemplate.expandHref
 import io.ktor.http.HttpMethod
@@ -28,36 +28,8 @@ class HalNavigator(
     ): NavigationResponse {
         val baseLink = selector.select(resource) ?: throw NoSuchLinkException(selector)
 
-        // Build document context for HaldishPlugin.preLink
-        val linkRel: String
-        val linkIndex: Int
-        val linkInDocument: HalDocument
-        val linkEmbeddingPath: List<EmbeddingStep>
-        when (selector) {
-            is LinkSelector.TopLevel -> {
-                linkRel = selector.rel
-                linkIndex = selector.index
-                linkInDocument = resource
-                linkEmbeddingPath = emptyList()
-            }
-            is LinkSelector.InEmbedded -> {
-                // Safe: baseLink non-null guarantees the embedded path exists
-                linkRel = selector.linkRel
-                linkIndex = selector.linkIndex
-                linkInDocument = resource.embedded(selector.embeddedRel)[selector.embeddedIndex]
-                linkEmbeddingPath = listOf(EmbeddingStep(selector.embeddedRel, selector.embeddedIndex, resource))
-            }
-            is LinkSelector.InItems -> {
-                // Safe: baseLink non-null guarantees the item exists
-                linkRel = selector.linkRel
-                linkIndex = selector.linkIndex
-                linkInDocument = resource.items[selector.itemIndex]
-                linkEmbeddingPath = listOf(EmbeddingStep(LinkSelector.ITEMS_REL, selector.itemIndex, resource))
-            }
-        }
-
-        // HaldishPlugin.preLink — user-level hook with full document context
-        val resolvedLink = client.resolveLink(baseLink, linkRel, linkIndex, linkInDocument, linkEmbeddingPath)
+        // HaldishPlugin.preLink — user-level hook with full document context via the path.
+        val resolvedLink = client.resolveLink(baseLink, selector.toResourcePath(), resource)
 
         val url = resolvedLink.expandHref(templateVars.toUriTemplateVars())
 
@@ -81,7 +53,63 @@ class HalNavigator(
             null
         }
 
-        return NavigationResponse(raw = rawResponse, document = document)
+        return NavigationResponse(raw = rawResponse, document = document, url = url)
+    }
+
+    /**
+     * Executes a caller-assembled [RequestSpec]: resolves the target from its [RequestSpec.path]
+     * (running `preLink` so plugins can create/modify the link), expands the URI template,
+     * sends (`preRequest`), and parses a HAL response. Does no URL manipulation of its own —
+     * relative hrefs are resolved only if a `preLink` plugin (e.g. base-url-rewriter) does so;
+     * with the default no-op plugin, URLs are expected to be absolute.
+     */
+    /**
+     * The URL [send] would request for [spec] — the target resolved through the `preLink` plugins
+     * and template-expanded — without sending anything. Callers that need to *display* the outgoing
+     * URL (a curl preview, or an error entry for a request that threw) must use this rather than
+     * the raw href, which is still CURIE-prefixed / relative until the plugins have run.
+     */
+    fun resolveUrl(spec: RequestSpec): String =
+        resolveLink(spec).expandHref(spec.templateVars.toUriTemplateVars())
+
+    private fun resolveLink(spec: RequestSpec): HalLink = when {
+        spec.path != null -> {
+            val root = spec.rootDocument
+                ?: throw IllegalArgumentException("RequestSpec.path requires a rootDocument")
+            val target = spec.path.resolve(root)
+                ?: throw IllegalArgumentException("RequestSpec.path did not resolve to a link: ${spec.path}")
+            // preLink — plugins may create/modify the resolved link before it is sent.
+            client.resolveLink(target.link, spec.path, root)
+        }
+        spec.url != null -> HalLink(href = spec.url)
+        else -> throw IllegalArgumentException("RequestSpec requires either 'path' or 'url'")
+    }
+
+    suspend fun send(spec: RequestSpec): NavigationResponse {
+        val url = resolveUrl(spec)
+
+        val request = HalHttpRequest(
+            url = url,
+            method = spec.method,
+            headers = config.defaultHeaders + spec.headers,
+            cookies = config.defaultCookies + spec.cookies,
+            body = spec.body,
+            acceptHal = spec.acceptHal,
+        )
+
+        val rawResponse = client.execute(request)
+
+        val document = if (rawResponse.isHal) {
+            try {
+                HalParser.parse(rawResponse.body, rawResponse.contentType).copy(sourceUrl = url)
+            } catch (_: HalParseException) {
+                null
+            }
+        } else {
+            null
+        }
+
+        return NavigationResponse(raw = rawResponse, document = document, url = url)
     }
 
     override fun close() = client.close()

@@ -1,13 +1,14 @@
 package com.helpchoice.nahal.ui.state
 
 import androidx.compose.runtime.*
+import com.helpchoice.nahal.core.HalNavigator
+import com.helpchoice.nahal.core.RequestSpec
 import com.helpchoice.nahal.haldish.http.HalHttpClient
-import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.haldish.http.MultipartPart
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
-import com.helpchoice.nahal.haldish.parser.HalParser
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.uritemplate.UriTemplate
 import com.helpchoice.nahal.haldish.uritemplate.UriTemplateVars
 import com.helpchoice.nahal.ui.model.*
@@ -21,7 +22,7 @@ import kotlin.time.TimeSource
 
 @Stable
 class NavigatorState(private val scope: CoroutineScope) {
-    private val client = HalHttpClient()
+    private val navigator = HalNavigator()
 
     var history by mutableStateOf<List<HistoryNode>>(emptyList())
         private set
@@ -54,39 +55,45 @@ class NavigatorState(private val scope: CoroutineScope) {
         val effectiveHeaders = if ("Accept" !in req.headers) {
             mapOf("Accept" to accept) + req.headers
         } else req.headers
-        try {
-            val bodyObj: HalRequestBody = when {
-                req.method in setOf("GET", "HEAD", "OPTIONS") -> HalRequestBody.None
-                req.bodyKind == BodyKind.BINARY && req.bodyBytes != null ->
-                    HalRequestBody.Binary(req.bodyBytes, req.bodyContentType)
-                req.bodyKind == BodyKind.MULTIPART && req.parts.isNotEmpty() ->
-                    HalRequestBody.Multipart(req.parts.map { p ->
-                        if (p.isFile) MultipartPart(p.name, p.bytes ?: ByteArray(0),
-                            fileName = p.fileName, contentType = p.contentType)
-                        else MultipartPart(p.name, p.value.encodeToByteArray(),
-                            fileName = null, contentType = p.contentType)
-                    })
-                req.body.isNotBlank() -> HalRequestBody.Text(req.body, "application/json")
-                else -> HalRequestBody.None
-            }
-            val raw = client.execute(
-                HalHttpRequest(
-                    url = req.url,
-                    method = HttpMethod(req.method),
-                    headers = effectiveHeaders,
-                    cookies = req.cookies,
-                    body = bodyObj,
-                    acceptHal = false,
-                )
+        val bodyObj: HalRequestBody = when {
+            req.method in setOf("GET", "HEAD", "OPTIONS") -> HalRequestBody.None
+            req.bodyKind == BodyKind.BINARY && req.bodyBytes != null ->
+                HalRequestBody.Binary(req.bodyBytes, req.bodyContentType)
+            req.bodyKind == BodyKind.MULTIPART && req.parts.isNotEmpty() ->
+                HalRequestBody.Multipart(req.parts.map { p ->
+                    if (p.isFile) MultipartPart(p.name, p.bytes ?: ByteArray(0),
+                        fileName = p.fileName, contentType = p.contentType)
+                    else MultipartPart(p.name, p.value.encodeToByteArray(),
+                        fileName = null, contentType = p.contentType)
+                })
+            req.body.isNotBlank() -> HalRequestBody.Text(req.body, "application/json")
+            else -> HalRequestBody.None
+        }
+        val spec = if (req.path != null) {
+            RequestSpec(
+                path = req.path, rootDocument = req.rootDocument,
+                method = HttpMethod(req.method), templateVars = req.vars,
+                headers = effectiveHeaders, cookies = req.cookies,
+                body = bodyObj, acceptHal = false,
             )
+        } else {
+            RequestSpec(
+                url = req.url, method = HttpMethod(req.method), templateVars = req.vars,
+                headers = effectiveHeaders, cookies = req.cookies,
+                body = bodyObj, acceptHal = false,
+            )
+        }
+        try {
+            val response = navigator.send(spec)
+            val raw = response.raw
             val elapsed = timer.elapsedNow().inWholeMilliseconds
-            val document = if (raw.isHal) {
-                runCatching { HalParser.parse(raw.body, raw.contentType) }.getOrNull()
-            } else null
+            val document = response.document
+            // Final URL after core resolved the link/property and expanded the template.
+            val sentUrl = response.url.ifEmpty { req.url }
 
             appendNode(
                 HistoryNode(
-                    id = nextId(), url = req.url, method = req.method,
+                    id = nextId(), url = sentUrl, method = req.method,
                     requestHeaders = effectiveHeaders, requestCookies = req.cookies,
                     requestBody = when {
                         req.method in setOf("GET", "HEAD", "OPTIONS") -> null
@@ -111,9 +118,17 @@ class NavigatorState(private val scope: CoroutineScope) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
+            // Report the URL core actually tried (plugins run, template expanded) — the raw href is
+            // still CURIE-prefixed / relative, so showing it makes a network failure look like a
+            // resolution failure. Falls back to the raw href when resolution is what threw.
+            val attemptedUrl = try {
+                navigator.resolveUrl(spec).ifEmpty { req.url }
+            } catch (_: Throwable) {
+                req.url
+            }
             appendNode(
                 HistoryNode(
-                    id = nextId(), url = req.url, method = req.method,
+                    id = nextId(), url = attemptedUrl, method = req.method,
                     requestHeaders = effectiveHeaders, requestCookies = req.cookies,
                     requestBody = null, fromRel = req.fromRel,
                     parentId = req.parentId ?: current?.id,
@@ -145,9 +160,8 @@ class NavigatorState(private val scope: CoroutineScope) {
     fun openEmbedded(parentNode: HistoryNode, rel: String, index: Int) {
         val doc = parentNode.response.document ?: return
         val item = doc.embedded[rel]?.getOrNull(index) ?: return
-        // Resolve the self href against the parent's absolute URL while cursor still points there.
-        val rawHref = item.links["self"]?.firstOrNull()?.href
-        val selfHref = if (rawHref != null) resolveHref(rawHref) else (current?.url ?: "(embedded:$rel[$index])")
+        // Display label only — opening an embedded resource performs no HTTP request.
+        val selfHref = item.links["self"]?.firstOrNull()?.href ?: (current?.url ?: "(embedded:$rel[$index])")
 
         val node = HistoryNode(
             id = nextId(), url = selfHref, method = "EMBEDDED",
@@ -168,8 +182,8 @@ class NavigatorState(private val scope: CoroutineScope) {
     fun openArrayItem(parentNode: HistoryNode, index: Int) {
         val doc = parentNode.response.document ?: return
         val item = doc.items.getOrNull(index) ?: return
-        val rawHref = item.links["self"]?.firstOrNull()?.href
-        val selfHref = if (rawHref != null) resolveHref(rawHref) else (current?.url ?: "item[$index]")
+        // Display label only — opening an array item performs no HTTP request.
+        val selfHref = item.links["self"]?.firstOrNull()?.href ?: (current?.url ?: "item[$index]")
         val node = HistoryNode(
             id = nextId(), url = selfHref, method = "ARRAY",
             requestHeaders = emptyMap(), requestCookies = emptyMap(), requestBody = null,
@@ -186,35 +200,20 @@ class NavigatorState(private val scope: CoroutineScope) {
         cursor = history.size - 1
     }
 
-    fun resolveHref(href: String): String {
-        if (href.startsWith("http://") || href.startsWith("https://")) return href
-        val base = current?.url ?: return href
-        return when {
-            href.startsWith("//") -> {
-                val scheme = base.substringBefore("://")
-                "$scheme:$href"
-            }
-            href.startsWith("/") -> {
-                val schemeEnd = base.indexOf("://") + 3
-                val hostEnd = base.indexOf("/", schemeEnd).let { if (it < 0) base.length else it }
-                base.substring(0, hostEnd) + href
-            }
-            else -> {
-                val schemeEnd = base.indexOf("://") + 3
-                val pathStart = base.indexOf("/", schemeEnd)
-                val origin = if (pathStart < 0) base else base.substring(0, pathStart)
-                val basePath = if (pathStart < 0) "/" else base.substring(pathStart)
-                val baseDir = basePath.substringBeforeLast("/") + "/"
-                origin + baseDir + href
-            }
-        }
-    }
-
-    fun prepareRequest(href: String, rel: String, templated: Boolean, type: String?, parentNodeId: String?) {
-        val accept = type ?: HalHttpClient.HAL_ACCEPT
+    /**
+     * Prepares a request to follow [link] (the [index]-th link under [rel]) from [rootDocument]
+     * (the resource whose links are shown). The UI does no URL manipulation — core resolves the
+     * link via its `preLink` plugins and expands the template on send. [link.href] is kept only as
+     * the display href until the final URL comes back from core.
+     */
+    fun prepareRequest(link: HalLink, rel: String, index: Int, rootDocument: HalDocument?, parentNodeId: String?) {
+        val accept = link.type ?: HalHttpClient.HAL_ACCEPT
         pendingRequest = PendingRequest(
-            url = resolveHref(href), templated = templated, vars = emptyMap(),
-            fromRel = rel, method = "GET", type = type,
+            url = link.href,
+            path = ResourcePath.link(rel, index),
+            rootDocument = rootDocument,
+            templated = link.templated, vars = emptyMap(),
+            fromRel = rel, method = "GET", type = link.type,
             headers = mapOf("Accept" to accept),
             cookies = emptyMap(), body = "",
             parentId = parentNodeId ?: current?.id,

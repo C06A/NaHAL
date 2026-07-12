@@ -152,7 +152,7 @@ fun ResponseCookiesPanel(cookies: List<CookieInfo>) {
 @Composable
 fun LinksPanel(
     document: HalDocument,
-    onFollow: (rel: String, link: HalLink) -> Unit,
+    onFollow: (rel: String, index: Int, link: HalLink) -> Unit,
 ) {
     val c = LocalNaHalColors.current
     val uriHandler = LocalUriHandler.current
@@ -184,13 +184,13 @@ fun LinksPanel(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    linkList.forEach { link ->
+                    linkList.forEachIndexed { index, link ->
                         val isDeprecated = link.deprecation != null
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(4.dp))
-                                .clickable { onFollow(rel, link) }
+                                .clickable { onFollow(rel, index, link) }
                                 .background(c.bg3.copy(alpha = 0f))
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp),

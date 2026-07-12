@@ -4,20 +4,7 @@ import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalHttpResponse
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
-
-/**
- * One step in the embedding path from the root [HalDocument] to the document directly
- * containing a followed link.
- *
- * @property rel        the relation name used to embed the sub-document
- * @property index      position of the embedded document within the [rel] array
- * @property inDocument the parent document in which [rel] is embedded
- */
-data class EmbeddingStep(
-    val rel: String,
-    val index: Int,
-    val inDocument: HalDocument,
-)
+import com.helpchoice.nahal.haldish.model.ResourcePath
 
 /**
  * Runtime plugin contract for haldish. Four lifecycle hooks — implement only those you need.
@@ -48,22 +35,20 @@ interface HaldishPlugin {
      * to resolve CURI prefixes, check [HalLink.name] or [HalLink.title],
      * or make routing decisions based on relation semantics.
      *
-     * @param link          the link about to be followed
-     * @param rel           the relation name (key in `_links`)
-     * @param linkIndex     position of [link] within the `_links[rel]` array
-     * @param inDocument    the [HalDocument] directly containing this link
-     * @param embeddingPath ordered list of embedding steps from root to direct parent;
-     *                      empty for top-level links, one entry per level of embedding.
-     *                      A list (not a map) is used to support repeated relation names
-     *                      (e.g. "items" embedded within "items").
-     *                      Walk `embeddingPath.map { it.inDocument }` to find CURIs in ancestors.
+     * The [path] addresses the target from [rootDocument]; the relation name is
+     * [ResourcePath.terminalRel] and the document directly containing the link is
+     * `path.documentsToContainer(rootDocument).last()`. Walk `path.documentsToContainer(rootDocument)`
+     * to inspect ancestors (e.g. to find CURIs). A plugin may create or modify the link and
+     * return it for the next plugin (or the client) to use.
+     *
+     * @param link         the link about to be followed (resolved from [path])
+     * @param path         the [ResourcePath] to the followed link or property, relative to [rootDocument]
+     * @param rootDocument the [HalDocument] the [path] is resolved against
      */
     fun preLink(
         link: HalLink,
-        rel: String,
-        linkIndex: Int,
-        inDocument: HalDocument,
-        embeddingPath: List<EmbeddingStep> = emptyList(),
+        path: ResourcePath,
+        rootDocument: HalDocument,
     ): HalLink = link
 
     /**
