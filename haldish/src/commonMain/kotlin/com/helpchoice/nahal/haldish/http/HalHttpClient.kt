@@ -3,8 +3,8 @@ package com.helpchoice.nahal.haldish.http
 import com.helpchoice.nahal.haldish.HalHttpException
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.parser.HalParser
-import com.helpchoice.nahal.haldish.plugin.EmbeddingStep
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import com.helpchoice.nahal.haldish.plugin.loadPlugin
 import com.helpchoice.nahal.haldish.plugin.platformPluginConfig
@@ -50,15 +50,13 @@ class HalHttpClient(
      * link and document context, returning the (possibly modified) link.
      *
      * Called by higher-level navigation layers (e.g. `HalNavigator`) before URL expansion,
-     * so that plugins have access to the originating [HalDocument] and embedding path.
+     * so that plugins have access to the [ResourcePath] and the [rootDocument] it addresses.
      */
     fun resolveLink(
         link: HalLink,
-        rel: String,
-        linkIndex: Int,
-        inDocument: HalDocument,
-        embeddingPath: List<EmbeddingStep> = emptyList(),
-    ): HalLink = plugin.preLink(link, rel, linkIndex, inDocument, embeddingPath)
+        path: ResourcePath,
+        rootDocument: HalDocument,
+    ): HalLink = plugin.preLink(link, path, rootDocument)
 
     suspend fun execute(request: HalHttpRequest): HalHttpResponse {
         val actualRequest = plugin.preRequest(request)

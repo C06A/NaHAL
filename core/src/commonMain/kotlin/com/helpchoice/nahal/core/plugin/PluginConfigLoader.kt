@@ -1,7 +1,7 @@
 package com.helpchoice.nahal.core.plugin
 
 import com.helpchoice.nahal.core.PluginConfigException
-import com.helpchoice.nahal.haldish.plugin.EmbeddingStep
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import com.helpchoice.nahal.haldish.plugin.HaldishPluginConfig
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
@@ -101,11 +101,9 @@ private class ChainedPlugin(private val plugins: List<HaldishPlugin>) : HaldishP
 
     override fun preLink(
         link: HalLink,
-        rel: String,
-        linkIndex: Int,
-        inDocument: HalDocument,
-        embeddingPath: List<EmbeddingStep>,
-    ): HalLink = plugins.fold(link) { acc, p -> p.preLink(acc, rel, linkIndex, inDocument, embeddingPath) }
+        path: ResourcePath,
+        rootDocument: HalDocument,
+    ): HalLink = plugins.fold(link) { acc, p -> p.preLink(acc, path, rootDocument) }
 
     override fun preRequest(request: HalHttpRequest): HalHttpRequest =
         plugins.fold(request) { acc, p -> p.preRequest(acc) }

@@ -4,6 +4,7 @@ import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.plugin.curie.CuriePlugin
 
 /**
@@ -39,7 +40,7 @@ class CurieModifier(private val plugin: CuriePlugin = CuriePlugin()) : LinkModif
             if (href.length >= 2 && href.startsWith("[") && href.endsWith("]"))
                 link.copy(href = href.substring(1, href.length - 1))
             else link
-        return plugin.preLink(unwrapped, rel, 0, inDocument, emptyList())
+        return plugin.preLink(unwrapped, ResourcePath.link(rel), inDocument)
     }
 }
 

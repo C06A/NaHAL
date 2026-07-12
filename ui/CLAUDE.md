@@ -10,6 +10,12 @@ expander, breadcrumb navigation).
 # Run the desktop GUI (JVM — opens a 1280×820 window)
 ./gradlew :ui:jvmRun
 
+# Run the desktop GUI with a plugin active — each plugin module overrides its own `jvmRun`
+# (puts that plugin's jvm artifact on the UI classpath + generates its HALDISH_CONFIG).
+# E.g. base-url-rewriter, so relative link hrefs resolve (the default NoOp plugin sends
+# relative URLs as-is). See plugins/CLAUDE.md for the full list.
+./gradlew :plugins:base-url-rewriter:jvmRun
+
 # Build the web UI (JS — output: ui/build/dist/js/productionExecutable/)
 ./gradlew :ui:jsBrowserProductionWebpack
 
@@ -43,7 +49,10 @@ NaHalNavigator                 — root composable (theme + state bootstrap)
 ```
 
 `NavigatorState` (in `state/`) owns all mutable state: `history`, `cursor`, `loading`,
-`pendingRequest`, `requestLog`. It wraps `HalHttpClient` directly (bypasses `:core`'s
-`HalNavigator` — simpler for the UI's event-driven model). Platform entries
+`pendingRequest`, `requestLog`. It performs **no URL manipulation** — it assembles a
+`core.RequestSpec` (a bare `url` for the address bar, or a `ResourcePath` + `rootDocument`
+for a followed link/property) and calls `core.HalNavigator.send`, which resolves the link via
+`preLink` plugins, expands the template, sends, and parses. The final sent URL comes back as
+`NavigationResponse.url`. Platform entries
 (`jvmMain/main.kt`, `jsMain/JsEntry.kt`, `wasmJsMain/WasmEntry.kt`, `macosMain/MacosEntry.kt`,
 `iosMain/IOSEntry.kt`) each call `NaHalNavigator()`.

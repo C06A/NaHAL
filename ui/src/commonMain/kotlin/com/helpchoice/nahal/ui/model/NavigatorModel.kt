@@ -1,6 +1,7 @@
 package com.helpchoice.nahal.ui.model
 
 import com.helpchoice.nahal.haldish.model.HalDocument
+import com.helpchoice.nahal.haldish.model.ResourcePath
 
 data class HistoryNode(
     val id: String,
@@ -39,7 +40,12 @@ data class BodyPart(
 )
 
 data class PendingRequest(
+    /** Display href shown in the builder/history. For a followed link, [path] drives the actual send. */
     val url: String,
+    /** Path to the followed link/property, resolved by core against [rootDocument]. Null for a bare-URL send. */
+    val path: ResourcePath? = null,
+    /** Document [path] is resolved against (the resource whose links are shown). */
+    val rootDocument: HalDocument? = null,
     val templated: Boolean = false,
     val vars: Map<String, String> = emptyMap(),
     val fromRel: String? = null,

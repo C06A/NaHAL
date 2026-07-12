@@ -65,6 +65,9 @@ kotlin {
     }
 }
 
+// Running the desktop UI with a plugin active lives in each plugin's build script:
+// `./gradlew :plugins:<name>:jvmRun` (see plugins/CLAUDE.md).
+
 listOf("macosArm64", "macosX64").forEach { target ->
     val cap = target.replaceFirstChar { it.uppercase() }
     tasks.register("bundle${cap}App") {

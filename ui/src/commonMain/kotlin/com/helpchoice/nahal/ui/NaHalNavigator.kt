@@ -187,12 +187,12 @@ private fun NaHalNavigatorContent(state: NavigatorState, startUrl: String) {
                         onToggleResp = { k -> openResp = if (k in openResp) openResp - k else openResp + k },
                         onToggleReq  = { k -> openReq  = if (k in openReq)  openReq  - k else openReq  + k },
                         onSelectNode = { id -> selectedId = id },
-                        onFollow = { rel, link ->
+                        onFollow = { rel, index, link ->
                             state.prepareRequest(
-                                href = link.href,
+                                link = link,
                                 rel = rel,
-                                templated = link.templated,
-                                type = link.type,
+                                index = index,
+                                rootDocument = selectedNode.response.document,
                                 parentNodeId = selectedNode.id,
                             )
                         },
@@ -224,7 +224,7 @@ private fun CenterPanel(
     onToggleResp: (String) -> Unit,
     onToggleReq: (String) -> Unit,
     onSelectNode: (String) -> Unit,
-    onFollow: (rel: String, link: HalLink) -> Unit,
+    onFollow: (rel: String, index: Int, link: HalLink) -> Unit,
     onOpenEmbedded: (rel: String, idx: Int) -> Unit,
     onOpenArrayItem: (idx: Int) -> Unit,
 ) {
@@ -336,7 +336,7 @@ private fun CenterPanel(
 private fun buildResponseSections(
     node: HistoryNode,
     doc: HalDocument?,
-    onFollow: (String, HalLink) -> Unit,
+    onFollow: (String, Int, HalLink) -> Unit,
     onOpenEmbedded: (String, Int) -> Unit,
     onOpenArrayItem: (Int) -> Unit,
 ): List<AccordionSection> = buildList {

@@ -2,19 +2,15 @@ package com.helpchoice.nahal.core
 
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.PathStep
+import com.helpchoice.nahal.haldish.model.ResourcePath
 
 sealed class LinkSelector {
 
     abstract fun select(resource: HalDocument): HalLink?
 
-    companion object {
-        /**
-         * Synthetic embedding-relation name used in an [com.helpchoice.nahal.haldish.plugin.EmbeddingStep]
-         * when a link is selected from [HalDocument.items] (a top-level array response).
-         * It starts with `$` so it cannot clash with real HAL relation names.
-         */
-        const val ITEMS_REL = "\$items"
-    }
+    /** The equivalent [ResourcePath] addressing the same link (given to plugins via `preLink`). */
+    abstract fun toResourcePath(): ResourcePath
 
     data class TopLevel(
         val rel: String,
@@ -22,6 +18,9 @@ sealed class LinkSelector {
     ) : LinkSelector() {
         override fun select(resource: HalDocument): HalLink? =
             resource.links(rel).getOrNull(index)
+
+        override fun toResourcePath(): ResourcePath =
+            ResourcePath(listOf(PathStep.Link(rel, index)))
 
         override fun toString(): String = "TopLevel(rel=$rel, index=$index)"
     }
@@ -37,6 +36,9 @@ sealed class LinkSelector {
                 .getOrNull(embeddedIndex)
                 ?.links(linkRel)
                 ?.getOrNull(linkIndex)
+
+        override fun toResourcePath(): ResourcePath =
+            ResourcePath(listOf(PathStep.Embedded(embeddedRel, embeddedIndex), PathStep.Link(linkRel, linkIndex)))
 
         override fun toString(): String =
             "InEmbedded(embeddedRel=$embeddedRel[$embeddedIndex], linkRel=$linkRel[$linkIndex])"
@@ -60,6 +62,9 @@ sealed class LinkSelector {
                 .getOrNull(itemIndex)
                 ?.links(linkRel)
                 ?.getOrNull(linkIndex)
+
+        override fun toResourcePath(): ResourcePath =
+            ResourcePath(listOf(PathStep.Item(itemIndex), PathStep.Link(linkRel, linkIndex)))
 
         override fun toString(): String =
             "InItems(itemIndex=$itemIndex, linkRel=$linkRel[$linkIndex])"

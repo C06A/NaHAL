@@ -9,5 +9,5 @@ plugins {
 
 allprojects {
     group   = "com.helpchoice.nahal"
-    version = "0.1.0-SNAPSHOT"
+    version = "2.0.0"
 }

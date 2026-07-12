@@ -7,7 +7,7 @@ lifecycle points:
 | Hook | When | What it can do |
 |------|------|----------------|
 | `initialize` | Once, before the first HTTP call | Read configuration from `config.properties`, establish connections |
-| `preLink` | Before following a link from a HalDocument | Inspect/modify the link using document context (CURI lookup, rel name, embedding path) |
+| `preLink` | Before following a link from a HalDocument | Create/modify the link using document context — the `ResourcePath` to the target and the root document (CURI lookup, rel name, ancestor walk) |
 | `preRequest` | Before every HTTP request | Modify URL, method, headers, cookies, body |
 | `postResponse` | After a HAL response is parsed (getHal / executeAndParse) | Add, remove or modify links, embedded docs, properties |
 
@@ -20,21 +20,35 @@ All hooks have **default no-op implementations** — implement only those you ne
 ```kotlin
 interface HaldishPlugin {
     fun initialize(config: HaldishPluginConfig) {}
-    fun preLink(link: HalLink, rel: String, linkIndex: Int,
-                inDocument: HalDocument,
-                embeddingPath: List<EmbeddingStep> = emptyList()): HalLink = link
+    fun preLink(link: HalLink, path: ResourcePath, rootDocument: HalDocument): HalLink = link
     fun preRequest(request: HalHttpRequest): HalHttpRequest = request
     fun postResponse(document: HalDocument, response: HalHttpResponse): HalDocument = document
 }
 
 /**
- * One step in the embedding path passed to [preLink].
- * [rel] is the embedding relation; [index] is the position within the parent's array;
- * [inDocument] is the parent document that embeds it.
- * Entries are ordered from outermost (root) to direct parent.
- * For top-level array responses, [rel] is the synthetic constant LinkSelector.ITEMS_REL.
+ * An addressable path from a root HalDocument to the link or property that produces a URL,
+ * following the grammar `Item? Embedded* (Link | Property+)`:
+ *   - an optional leading Item (a top-level array response),
+ *   - a chain of Embedded descents,
+ *   - a terminal — a single Link, or a chain of Property names (a nested property URL).
+ * A path with no terminal resolves to the reached resource's `self` link.
  */
-data class EmbeddingStep(val rel: String, val index: Int, val inDocument: HalDocument)
+sealed interface PathStep {
+    data class Item(val index: Int) : PathStep                         // items[index]
+    data class Embedded(val rel: String, val index: Int = 0) : PathStep // _embedded[rel][index]
+    data class Link(val rel: String, val index: Int = 0) : PathStep     // _links[rel][index]  (terminal)
+    data class Property(val name: String) : PathStep                   // property name        (terminal chain)
+}
+
+data class ResourcePath(val steps: List<PathStep>) {
+    val terminalRel: String                                    // link rel, last property name, or "self"
+    fun documentsToContainer(root: HalDocument): List<HalDocument>  // root .. container of the terminal
+    fun resolve(root: HalDocument): ResolvedTarget?            // link + container + document chain, or null
+    companion object {
+        fun link(rel: String, index: Int = 0): ResourcePath   // a top-level _links[rel][index]
+        fun self(): ResourcePath                              // the reached resource's self link
+    }
+}
 
 data class HaldishPluginConfig(
     val platform: String,                             // "jvm", "js", "wasmjs", "apple", "linux", "windows"
@@ -53,26 +67,25 @@ data class HaldishPluginConfig(
 
 ### `preLink` — document-context hook
 
-`preLink` fires when navigation originates from a HAL link (e.g. via `HalNavigator`), **not** for bare-URL calls. Use it when you need to see the originating document — for example to resolve CURIs or inspect the relation name:
+`preLink` fires when navigation originates from a HAL link or property (e.g. via `HalNavigator`), **not** for bare-URL calls. The `path` addresses the target from `rootDocument`; the relation name is `path.terminalRel` and the document directly holding the link is `path.documentsToContainer(rootDocument).last()`. Walk `path.documentsToContainer(rootDocument)` (root-first) to inspect ancestors. A plugin may **create or modify** the link and return it for the next plugin (or the client):
 
 ```kotlin
 class CuriAwarePlugin : HaldishPlugin {
     override fun preLink(
         link: HalLink,
-        rel: String,
-        linkIndex: Int,
-        inDocument: HalDocument,
-        embeddingPath: List<EmbeddingStep>,
+        path: ResourcePath,
+        rootDocument: HalDocument,
     ): HalLink {
-        // Collect all ancestor documents (root-first) plus the current document
-        val allDocs = embeddingPath.map { it.inDocument } + inDocument
+        // Ancestor documents, nearest (container) first
+        val ancestorsNearestFirst = path.documentsToContainer(rootDocument).asReversed()
 
-        // Resolve the CURI prefix, if any
+        // Resolve the CURI prefix on the relation name, if any
+        val rel = path.terminalRel
         val colonIdx = rel.indexOf(':')
         if (colonIdx > 0) {
             val prefix = rel.substring(0, colonIdx)
             val suffix = rel.substring(colonIdx + 1)
-            val curie = allDocs.flatMap { it.links("curies") }.find { it.name == prefix }
+            val curie = ancestorsNearestFirst.flatMap { it.links("curies") }.find { it.name == prefix }
             if (curie != null) {
                 val docsUrl = curie.href.replace("{rel}", suffix)
                 println("Following $rel  →  docs: $docsUrl")
@@ -84,9 +97,9 @@ class CuriAwarePlugin : HaldishPlugin {
 }
 ```
 
-`embeddingPath` is a **list** (not a map) so repeated relation names (e.g. "items" nested inside "items") are preserved correctly. Each step carries `index` (position within the parent's array) as well as `inDocument`.
+`documentsToContainer` returns a **list** (root → container) so repeated relation names (e.g. "items" nested inside "items") are preserved correctly. The path's `Item`/`Embedded` steps carry the array `index` at each level.
 
-For links selected from a top-level array response (`HalDocument.items`), the synthetic relation name `LinkSelector.ITEMS_REL` (`"$items"`) appears as the first step's `rel` — it cannot clash with real HAL relation names. Use it to distinguish "came from items array" from "came from embedded relation".
+For a link selected from a top-level array response, the path begins with a `PathStep.Item(index)`; use it to distinguish "came from items array" from "came from an embedded relation". A `Property` terminal produces a synthesized `HalLink` from the property's string value, which the plugin may then rewrite like any other link.
 
 ---
 
