@@ -2,7 +2,7 @@ package com.helpchoice.nahal.plugin.baseurlrewriter
 
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
-import com.helpchoice.nahal.haldish.plugin.EmbeddingStep
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 
 /**
@@ -45,11 +45,10 @@ class BaseUrlRewriterPlugin(configuredBase: String? = null) : HaldishPlugin {
 
     override fun preLink(
         link: HalLink,
-        rel: String,
-        linkIndex: Int,
-        inDocument: HalDocument,
-        embeddingPath: List<EmbeddingStep>,
+        path: ResourcePath,
+        rootDocument: HalDocument,
     ): HalLink {
+        val inDocument = path.documentsToContainer(rootDocument).lastOrNull() ?: rootDocument
         val sourceUrl = inDocument.sourceUrl ?: return link
         val selfHref = inDocument.link("self")?.href
         val derived = computeBase(sourceUrl, selfHref)

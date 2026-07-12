@@ -2,7 +2,7 @@ package com.helpchoice.nahal.plugin.curie
 
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
-import com.helpchoice.nahal.haldish.plugin.EmbeddingStep
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 
 /**
@@ -10,7 +10,9 @@ import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
  * the behaviour of HALDiSh's `halcurie.sh` link plugin.
  *
  * A href "looks like a CURIE" when it is `<prefix>:<reference>` with an NCName
- * `<prefix>` (e.g. `ord:widget`). The prefix is resolved against the first link in a
+ * `<prefix>` (e.g. `ord:widget`), or the equivalent **SafeCURIE** with the whole thing wrapped
+ * in brackets (`[ord:widget]`) — the brackets are stripped before expansion, per the CURIE spec.
+ * The prefix is resolved against the first link in a
  * [CURIE_REL] collection whose [HalLink.name] equals the prefix, searched from the
  * document directly holding the link upward through the embedding stack to the root.
  *
@@ -31,12 +33,13 @@ class CuriePlugin : HaldishPlugin {
 
     override fun preLink(
         link: HalLink,
-        rel: String,
-        linkIndex: Int,
-        inDocument: HalDocument,
-        embeddingPath: List<EmbeddingStep>,
+        path: ResourcePath,
+        rootDocument: HalDocument,
     ): HalLink {
-        val href = link.href
+        // A SafeCURIE wraps the CURIE in brackets; strip them before expanding.
+        val href = link.href.let {
+            if (it.length >= 2 && it.startsWith('[') && it.endsWith(']')) it.substring(1, it.length - 1) else it
+        }
         // Not a CURIE-looking href → pass through unchanged.
         val colon = href.indexOf(':')
         if (colon < 0) return link
@@ -47,8 +50,7 @@ class CuriePlugin : HaldishPlugin {
 
         // Search from the link's own document upward through the embedding stack to the
         // root (nearest ancestor first); take the first CURIE definition named `prefix`.
-        val ancestorsNearestFirst =
-            listOf(inDocument) + embeddingPath.asReversed().map { it.inDocument }
+        val ancestorsNearestFirst = path.documentsToContainer(rootDocument).asReversed()
 
         val curieHref = ancestorsNearestFirst
             .asSequence()

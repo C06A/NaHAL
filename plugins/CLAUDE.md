@@ -22,6 +22,24 @@ Ready-made example plugins. Each is an independent Gradle submodule.
 ./gradlew :plugins:logger:jvmTest
 ```
 
+## Run the NaHAL desktop UI with a plugin
+
+Every plugin module overrides the KMP `jvmRun` task: it launches `:ui`'s JVM main with that
+plugin's jvm artifact on the classpath and `HALDISH_CONFIG` pointing at a config file it
+generates into the plugin's `build/` dir, so `:core` discovers and activates the plugin.
+
+```bash
+./gradlew :plugins:curie:jvmRun              # CURIE-prefixed hrefs expanded
+./gradlew :plugins:base-url-rewriter:jvmRun  # relative link hrefs resolved
+./gradlew :plugins:logger:jvmRun             # exchanges written to ./haldish-log
+./gradlew :plugins:chain:jvmRun              # curie + base-url-rewriter together
+./gradlew :plugins:api-key:jvmRun -PapiKey=secret
+./gradlew :plugins:bearer-token:jvmRun -Ptoken=eyJhbGci...
+```
+
+`:plugins:chain:jvmRun` puts `curie` and `base-url-rewriter` on the classpath and lists
+both in its config (curie first — its expansion runs before base-URL resolution).
+
 ## Module overview
 
 | Module | Pattern | Artifact |
@@ -51,6 +69,6 @@ hooks, all with default no-op impls:
 | Hook | When |
 |---|---|
 | `initialize(config)` | Once, before first HTTP call — read `config.properties` |
-| `preLink(link, rel, linkIndex, inDocument, embeddingPath)` | Before following a link; has full document + embedding context |
+| `preLink(link, path, rootDocument)` | Before following a link/property; `path` (a `ResourcePath`) addresses the target from `rootDocument`, `path.terminalRel` is the rel, `path.documentsToContainer(rootDocument)` walks the ancestors |
 | `preRequest(request)` | Before every HTTP request — modify URL/method/headers/cookies/body |
 | `postResponse(document, response)` | After a HAL response is parsed — add/remove/modify links, embedded, properties |
