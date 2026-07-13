@@ -1,5 +1,6 @@
 package com.helpchoice.nahal.haldish.model
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -27,8 +28,14 @@ sealed interface PathStep {
     /**
      * Terminal chain: a (possibly nested) property whose string value is the URL.
      * `Property("data"), Property("url")` addresses `$.data.url`.
+     *
+     * [index], when set, selects an element of the array held by [name] — so
+     * `Property("items", 0), Property("url")` addresses `$.items[0].url` and
+     * `Property("mirrors", 1)` addresses `$.mirrors[1]`. An array hop is always folded into the
+     * step naming the array; an array nested directly in an array (`$.matrix[0][1]`) therefore
+     * has no representation and is not addressable.
      */
-    data class Property(val name: String) : PathStep
+    data class Property(val name: String, val index: Int? = null) : PathStep
 }
 
 /**
@@ -116,15 +123,21 @@ data class ResourcePath(val steps: List<PathStep>) {
 
     /** Walks the [PathStep.Property] chain into [container]'s JSON properties and builds a link from the string value. */
     private fun resolveProperty(container: HalDocument): HalLink? {
-        val names = terminal.filterIsInstance<PathStep.Property>().map { it.name }
-        var element: JsonElement = container.properties[names.first()] ?: return null
-        for (name in names.drop(1)) {
+        val props = terminal.filterIsInstance<PathStep.Property>()
+        var element: JsonElement = container.properties[props.first().name] ?: return null
+        element = props.first().index?.let { element.elementAt(it) ?: return null } ?: element
+        for (prop in props.drop(1)) {
             val obj: Map<String, JsonElement> = element as? JsonObject ?: return null
-            element = obj[name] ?: return null
+            element = obj[prop.name] ?: return null
+            element = prop.index?.let { element.elementAt(it) ?: return null } ?: element
         }
         val href = (element as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
         return HalLink(href = href, templated = '{' in href)
     }
+
+    /** The [index]-th element of this element when it is a JSON array, else null. */
+    private fun JsonElement.elementAt(index: Int): JsonElement? =
+        (this as? JsonArray)?.getOrNull(index)
 
     companion object {
         const val SELF_REL = "self"
@@ -135,5 +148,9 @@ data class ResourcePath(val steps: List<PathStep>) {
 
         /** The `self` link of the reached resource (empty terminal). */
         fun self(): ResourcePath = ResourcePath(emptyList())
+
+        /** A top-level property chain whose string value is the URL: `property("data", "url")` → `$.data.url`. */
+        fun property(vararg names: String): ResourcePath =
+            ResourcePath(names.map { PathStep.Property(it) })
     }
 }

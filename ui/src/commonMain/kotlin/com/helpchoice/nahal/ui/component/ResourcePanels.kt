@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.PathStep
 import com.helpchoice.nahal.ui.NaHalMonoFont
 import com.helpchoice.nahal.ui.NaHalSansFont
 import com.helpchoice.nahal.ui.JsonColors
@@ -393,19 +394,46 @@ fun ArrayItemsPanel(items: List<HalDocument>, onOpen: (Int) -> Unit) {
 
 // ── Property tree ─────────────────────────────────────────────────────────────
 
+/**
+ * Renders [document]'s JSON properties. A string property holding an absolute URL is clickable and
+ * reports its [PathStep.Property] chain — the terminal only, relative to [document] — to [onFollow].
+ * Rooting that terminal against the fetched ancestor is the caller's job.
+ */
 @Composable
-fun PropTree(document: HalDocument) {
+fun PropTree(
+    document: HalDocument,
+    onFollow: ((List<PathStep.Property>, String) -> Unit)? = null,
+) {
     val props = document.properties
     if (props.isEmpty()) { EmptyState("No properties."); return }
     Column(modifier = Modifier.fillMaxWidth()) {
         props.forEach { (key, value) ->
-            JsonNode(key = key, value = value, depth = 0)
+            JsonNode(
+                key = key, value = value, depth = 0,
+                path = listOf(PathStep.Property(key)), onFollow = onFollow,
+            )
         }
     }
 }
 
+/** `<scheme>://<non-empty>` — the only property values offered as followable. */
+private val ABSOLUTE_URL = Regex("^[A-Za-z][A-Za-z0-9+.-]*://.+$")
+
+/**
+ * One node of the property tree.
+ *
+ * [path] is the property chain addressing this node, or null when the node sits in a subtree the
+ * path grammar cannot express — an array nested directly in an array, whose elements have no name
+ * to hang an index on. Such values still render; they are simply never clickable.
+ */
 @Composable
-private fun JsonNode(key: String, value: JsonElement, depth: Int) {
+private fun JsonNode(
+    key: String,
+    value: JsonElement,
+    depth: Int,
+    path: List<PathStep.Property>?,
+    onFollow: ((List<PathStep.Property>, String) -> Unit)?,
+) {
     val c = LocalNaHalColors.current
     val indent = (depth * 14).dp
 
@@ -426,7 +454,10 @@ private fun JsonNode(key: String, value: JsonElement, depth: Int) {
             }
             if (open) {
                 value.entries.forEach { (k, v) ->
-                    JsonNode(key = k, value = v, depth = depth + 1)
+                    JsonNode(
+                        key = k, value = v, depth = depth + 1,
+                        path = path?.plus(PathStep.Property(k)), onFollow = onFollow,
+                    )
                 }
             }
         }
@@ -445,8 +476,17 @@ private fun JsonNode(key: String, value: JsonElement, depth: Int) {
                 Text("Array[${value.size}]", color = c.text3, fontSize = 10.5.sp, fontFamily = NaHalSansFont)
             }
             if (open) {
+                // The index folds into the step naming this array. An array directly inside an
+                // array has no name of its own to carry a second index, so its elements are
+                // unaddressable (path = null) and render as plain values.
+                val last = path?.lastOrNull()
+                val addressable = last != null && last.index == null
                 value.forEachIndexed { i, item ->
-                    JsonNode(key = "[$i]", value = item, depth = depth + 1)
+                    JsonNode(
+                        key = "[$i]", value = item, depth = depth + 1,
+                        path = if (addressable) path.dropLast(1) + last!!.copy(index = i) else null,
+                        onFollow = onFollow,
+                    )
                 }
             }
         }
@@ -457,6 +497,9 @@ private fun JsonNode(key: String, value: JsonElement, depth: Int) {
                 value.content == "null" -> "null" to JsonColors.null_
                 else -> value.content to JsonColors.number
             }
+            val followable = onFollow != null && path != null &&
+                value.isString && ABSOLUTE_URL.matches(value.content)
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -467,6 +510,15 @@ private fun JsonNode(key: String, value: JsonElement, depth: Int) {
                 Text(key, color = c.accent, fontSize = 11.5.sp, fontFamily = NaHalMonoFont)
                 SelectionContainer {
                     Text(displayText, color = textColor, fontSize = 11.5.sp, fontFamily = NaHalMonoFont)
+                }
+                if (followable) {
+                    Text(
+                        "follow ↗",
+                        color = c.accent,
+                        fontSize = 10.5.sp,
+                        fontFamily = NaHalSansFont,
+                        modifier = Modifier.clickable { onFollow!!(path!!, value.content) },
+                    )
                 }
             }
         }

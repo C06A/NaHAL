@@ -8,6 +8,7 @@ import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.haldish.http.MultipartPart
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.PathStep
 import com.helpchoice.nahal.haldish.model.ResourcePath
 import com.helpchoice.nahal.haldish.uritemplate.UriTemplate
 import com.helpchoice.nahal.haldish.uritemplate.UriTemplateVars
@@ -172,7 +173,7 @@ class NavigatorState(private val scope: CoroutineScope) {
                 headers = mapOf("Content-Type" to "application/hal+json (embedded)"),
                 cookies = emptyMap(), body = item.toRawJson(), document = item,
             ),
-            elapsedMs = 0, embeddedRef = EmbeddedRef(rel, index),
+            elapsedMs = 0, originStep = PathStep.Embedded(rel, index),
         )
         val trimmed = if (cursor >= 0) history.subList(0, cursor + 1) else emptyList()
         history = trimmed + node
@@ -193,7 +194,7 @@ class NavigatorState(private val scope: CoroutineScope) {
                 headers = mapOf("Content-Type" to "application/hal+json (embedded)"),
                 cookies = emptyMap(), body = item.toRawJson(), document = item,
             ),
-            elapsedMs = 0, embeddedRef = EmbeddedRef("items", index),
+            elapsedMs = 0, originStep = PathStep.Item(index),
         )
         val trimmed = if (cursor >= 0) history.subList(0, cursor + 1) else emptyList()
         history = trimmed + node
@@ -201,24 +202,53 @@ class NavigatorState(private val scope: CoroutineScope) {
     }
 
     /**
-     * Prepares a request to follow [link] (the [index]-th link under [rel]) from [rootDocument]
-     * (the resource whose links are shown). The UI does no URL manipulation — core resolves the
-     * link via its `preLink` plugins and expands the template on send. [link.href] is kept only as
-     * the display href until the final URL comes back from core.
+     * Prepares a request to follow [link] (the [index]-th link under [rel]) shown on [node]. The UI
+     * does no URL manipulation — core resolves the link via its `preLink` plugins and expands the
+     * template on send. [link.href] is kept only as the display href until the final URL comes back
+     * from core.
      */
-    fun prepareRequest(link: HalLink, rel: String, index: Int, rootDocument: HalDocument?, parentNodeId: String?) {
+    fun prepareRequest(link: HalLink, rel: String, index: Int, node: HistoryNode?) {
         val accept = link.type ?: HalHttpClient.HAL_ACCEPT
+        val rooted = rootedPath(node, listOf(PathStep.Link(rel, index)))
         pendingRequest = PendingRequest(
             url = link.href,
-            path = ResourcePath.link(rel, index),
-            rootDocument = rootDocument,
+            path = rooted?.path ?: ResourcePath.link(rel, index),
+            rootDocument = rooted?.rootDocument ?: node?.response?.document,
             templated = link.templated, vars = emptyMap(),
             fromRel = rel, method = "GET", type = link.type,
             headers = mapOf("Accept" to accept),
             cookies = emptyMap(), body = "",
-            parentId = parentNodeId ?: current?.id,
+            parentId = node?.id ?: current?.id,
         )
     }
+
+    /**
+     * Prepares a request to a URL held in a *property* of [node]'s document, addressed by [terminal]
+     * (e.g. `items[0].url`). A property carries no media type, so the request goes to the builder
+     * with the HAL `Accept` — the user retypes it if the target is not HAL. [href] is the raw value,
+     * shown until core resolves it.
+     */
+    fun preparePropertyRequest(terminal: List<PathStep.Property>, href: String, node: HistoryNode?) {
+        val rooted = rootedPath(node, terminal)
+        pendingRequest = PendingRequest(
+            url = href,
+            path = rooted?.path ?: ResourcePath(terminal),
+            rootDocument = rooted?.rootDocument ?: node?.response?.document,
+            templated = '{' in href, vars = emptyMap(),
+            fromRel = terminal.jsonPathLabel(), method = "GET", type = null,
+            headers = mapOf("Accept" to HalHttpClient.HAL_ACCEPT),
+            cookies = emptyMap(), body = "",
+            parentId = node?.id ?: current?.id,
+        )
+    }
+
+    /**
+     * The path to [terminal] rooted at [node]'s nearest fetched ancestor, so plugins see the whole
+     * embedding stack. Null when the chain has no [ResourcePath] representation — callers then
+     * address [terminal] against [node]'s own document.
+     */
+    private fun rootedPath(node: HistoryNode?, terminal: List<PathStep>): RootedPath? =
+        node?.let { resolveNodePath(history, it, terminal) }
 
     fun goBack() { if (canGoBack) cursor-- }
     fun goForward() { if (canGoForward) cursor++ }

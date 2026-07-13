@@ -1,6 +1,7 @@
 package com.helpchoice.nahal.ui.model
 
 import com.helpchoice.nahal.haldish.model.HalDocument
+import com.helpchoice.nahal.haldish.model.PathStep
 import com.helpchoice.nahal.haldish.model.ResourcePath
 
 data class HistoryNode(
@@ -14,7 +15,13 @@ data class HistoryNode(
     val parentId: String?,
     val response: FetchedResponse,
     val elapsedMs: Long,
-    val embeddedRef: EmbeddedRef? = null,
+    /**
+     * The step that produced this node from its parent, when it was opened *within* the parent's
+     * document rather than fetched: [PathStep.Embedded] for an embedded sub-resource,
+     * [PathStep.Item] for a top-level array item. Null for a fetched node — whose document is
+     * therefore a root a [ResourcePath] can be built against.
+     */
+    val originStep: PathStep? = null,
 )
 
 data class FetchedResponse(
@@ -62,8 +69,6 @@ data class PendingRequest(
     val bodyContentType: String = "application/octet-stream",
     val parts: List<BodyPart> = emptyList(),      // MULTIPART body
 )
-
-data class EmbeddedRef(val rel: String, val index: Int)
 
 data class LogEntry(
     val id: String,
