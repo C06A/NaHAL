@@ -16,6 +16,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -71,6 +72,42 @@ class HalNavigatorSendTest {
         )
         cap.navigator(plugin = rewriter).send(RequestSpec(path = ResourcePath.link("next"), rootDocument = doc))
         assertEquals("https://api.example.com/next", cap.url)
+    }
+
+    // ── property URL: followed like a link, through preLink ──────────────────
+
+    @Test fun sendFollowsPropertyUrlThroughPreLink() = runTest {
+        // A CURIE-style plugin proves a property href gets the same plugin treatment as a link.
+        val expander = object : HaldishPlugin {
+            override fun preLink(link: HalLink, path: ResourcePath, rootDocument: HalDocument): HalLink =
+                if (link.href.startsWith("ord:"))
+                    link.copy(href = "https://api.example.com/orders/" + link.href.removePrefix("ord:"))
+                else link
+        }
+        val cap = Capture()
+        val doc = HalDocument(
+            properties = mapOf("widget" to JsonPrimitive("ord:widget")),
+            sourceUrl = "https://api.example.com/root",
+        )
+        cap.navigator(plugin = expander)
+            .send(RequestSpec(path = ResourcePath.property("widget"), rootDocument = doc))
+        assertEquals("https://api.example.com/orders/widget", cap.url)
+    }
+
+    @Test fun resolveUrlForIndexedPropertyInArray() = runTest {
+        val cap = Capture()
+        val doc = HalDocument(
+            properties = mapOf(
+                "mirrors" to buildJsonArray {
+                    add(JsonPrimitive("https://a.example.com/x")); add(JsonPrimitive("https://b.example.com/x"))
+                },
+            ),
+        )
+        val url = cap.navigator().resolveUrl(
+            RequestSpec(path = ResourcePath(listOf(PathStep.Property("mirrors", 1))), rootDocument = doc),
+        )
+        assertEquals("https://b.example.com/x", url)
+        assertNull(cap.url)
     }
 
     // ── resolveUrl: the URL send would request, without sending ──────────────

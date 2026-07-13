@@ -1,6 +1,7 @@
 package com.helpchoice.nahal.haldish.model
 
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -60,6 +61,55 @@ class ResourcePathTest {
         val doc = HalDocument(properties = mapOf("tpl" to JsonPrimitive("https://x/items{?page}")))
         val target = ResourcePath(listOf(PathStep.Property("tpl"))).resolve(doc)!!
         assertEquals(true, target.link.templated)
+    }
+
+    // ── indexed properties (URL inside a JSON array) ─────────────────────────
+
+    @Test fun indexedPropertySelectsArrayElement() {
+        val doc = HalDocument(
+            properties = mapOf(
+                "mirrors" to buildJsonArray {
+                    add(JsonPrimitive("https://a/x")); add(JsonPrimitive("https://b/x"))
+                },
+            ),
+        )
+        val path = ResourcePath(listOf(PathStep.Property("mirrors", 1)))
+        assertEquals("https://b/x", path.resolve(doc)!!.link.href)
+        assertEquals("mirrors", path.terminalRel)
+    }
+
+    @Test fun indexedPropertyThenNestedKeyResolves() {
+        // $.items[0].url
+        val doc = HalDocument(
+            properties = mapOf(
+                "items" to buildJsonArray {
+                    add(buildJsonObject { put("url", JsonPrimitive("https://x/0")) })
+                    add(buildJsonObject { put("url", JsonPrimitive("https://x/1")) })
+                },
+            ),
+        )
+        val path = ResourcePath(listOf(PathStep.Property("items", 1), PathStep.Property("url")))
+        assertEquals("https://x/1", path.resolve(doc)!!.link.href)
+    }
+
+    @Test fun indexOnNonArrayResolvesToNull() {
+        val doc = HalDocument(properties = mapOf("url" to JsonPrimitive("https://x/1")))
+        assertNull(ResourcePath(listOf(PathStep.Property("url", 0))).resolve(doc))
+    }
+
+    @Test fun indexOutOfBoundsResolvesToNull() {
+        val doc = HalDocument(
+            properties = mapOf("mirrors" to buildJsonArray { add(JsonPrimitive("https://a/x")) }),
+        )
+        assertNull(ResourcePath(listOf(PathStep.Property("mirrors", 5))).resolve(doc))
+    }
+
+    @Test fun unindexedArrayPropertyResolvesToNull() {
+        // The array itself is not a string URL — only an indexed element is.
+        val doc = HalDocument(
+            properties = mapOf("mirrors" to buildJsonArray { add(JsonPrimitive("https://a/x")) }),
+        )
+        assertNull(ResourcePath.property("mirrors").resolve(doc))
     }
 
     @Test fun missingLinkResolvesToNull() {

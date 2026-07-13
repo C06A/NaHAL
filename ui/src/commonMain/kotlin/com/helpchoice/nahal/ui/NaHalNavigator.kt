@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.PathStep
 import com.helpchoice.nahal.ui.component.*
 import com.helpchoice.nahal.ui.model.*
 import com.helpchoice.nahal.ui.state.NavigatorState
@@ -192,9 +193,11 @@ private fun NaHalNavigatorContent(state: NavigatorState, startUrl: String) {
                                 link = link,
                                 rel = rel,
                                 index = index,
-                                rootDocument = selectedNode.response.document,
-                                parentNodeId = selectedNode.id,
+                                node = selectedNode,
                             )
+                        },
+                        onFollowProperty = { terminal, href ->
+                            state.preparePropertyRequest(terminal, href, selectedNode)
                         },
                         onOpenEmbedded = { rel, idx ->
                             state.openEmbedded(selectedNode, rel, idx)
@@ -225,6 +228,7 @@ private fun CenterPanel(
     onToggleReq: (String) -> Unit,
     onSelectNode: (String) -> Unit,
     onFollow: (rel: String, index: Int, link: HalLink) -> Unit,
+    onFollowProperty: (terminal: List<PathStep.Property>, href: String) -> Unit,
     onOpenEmbedded: (rel: String, idx: Int) -> Unit,
     onOpenArrayItem: (idx: Int) -> Unit,
 ) {
@@ -298,6 +302,7 @@ private fun CenterPanel(
                             node = node,
                             doc = doc,
                             onFollow = onFollow,
+                            onFollowProperty = onFollowProperty,
                             onOpenEmbedded = onOpenEmbedded,
                             onOpenArrayItem = onOpenArrayItem,
                         )
@@ -337,6 +342,7 @@ private fun buildResponseSections(
     node: HistoryNode,
     doc: HalDocument?,
     onFollow: (String, Int, HalLink) -> Unit,
+    onFollowProperty: (List<PathStep.Property>, String) -> Unit,
     onOpenEmbedded: (String, Int) -> Unit,
     onOpenArrayItem: (Int) -> Unit,
 ): List<AccordionSection> = buildList {
@@ -384,7 +390,7 @@ private fun buildResponseSections(
             key = "props",
             title = "Properties",
             count = doc.properties.size,
-            content = { PropTree(document = doc) },
+            content = { PropTree(document = doc, onFollow = onFollowProperty) },
         ))
     } else if (node.response.body.isNotBlank()) {
         add(AccordionSection(
