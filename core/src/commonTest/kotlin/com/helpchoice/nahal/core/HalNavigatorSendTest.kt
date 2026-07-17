@@ -207,6 +207,20 @@ class HalNavigatorSendTest {
         assertEquals("plain text", response.raw.body)
     }
 
+    // ── plain JSON (no hal+ content type) still yields a document ────────────
+
+    @Test fun sendPlainJsonResponseParsesIntoDocument() = runTest {
+        val cap = Capture()
+        val response = cap.navigator(
+            body = """{"links":{"next":"https://api.example.com/page/2"},"count":39}""",
+            contentType = "application/json",
+        ).send(RequestSpec(url = "https://api.example.com/feed"))
+        val doc = assertNotNull(response.document)
+        // No _links/_embedded — every field is a property, including the "links" object.
+        assertTrue(doc.links.isEmpty())
+        assertEquals(setOf("links", "count"), doc.properties.keys)
+    }
+
     // ── neither url nor path ─────────────────────────────────────────────────
 
     @Test fun sendRequiresUrlOrPath() = runTest {

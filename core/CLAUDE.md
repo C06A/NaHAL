@@ -33,7 +33,8 @@ HalNavigator.navigate(resource, selector, method, ...)
        ├── HalHttpClient.execute(request)     → HalHttpResponse
        │
        └── HalParser.parse(body, contentType) → HalDocument?
-                                               (null if response is not HAL)
+                                               (parsed whenever the body is structured
+                                                JSON/XML/YAML, HAL or not; null otherwise)
                     ↓
             NavigationResponse { raw, document, isHal, statusCode, isSuccess }
 ```

@@ -1,9 +1,9 @@
 package com.helpchoice.nahal.core
 
 import com.helpchoice.nahal.core.plugin.buildConfiguredPlugin
-import com.helpchoice.nahal.haldish.HalParseException
 import com.helpchoice.nahal.haldish.http.HalHttpClient
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
+import com.helpchoice.nahal.haldish.http.HalHttpResponse
 import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
@@ -43,17 +43,7 @@ class HalNavigator(
 
         val rawResponse = client.execute(request)
 
-        val document = if (rawResponse.isHal) {
-            try {
-                HalParser.parse(rawResponse.body, rawResponse.contentType).copy(sourceUrl = url)
-            } catch (_: HalParseException) {
-                null
-            }
-        } else {
-            null
-        }
-
-        return NavigationResponse(raw = rawResponse, document = document, url = url)
+        return NavigationResponse(raw = rawResponse, document = parseDocument(rawResponse, url), url = url)
     }
 
     /**
@@ -99,18 +89,22 @@ class HalNavigator(
 
         val rawResponse = client.execute(request)
 
-        val document = if (rawResponse.isHal) {
-            try {
-                HalParser.parse(rawResponse.body, rawResponse.contentType).copy(sourceUrl = url)
-            } catch (_: HalParseException) {
-                null
-            }
-        } else {
+        return NavigationResponse(raw = rawResponse, document = parseDocument(rawResponse, url), url = url)
+    }
+
+    /**
+     * Parses the response body into a [HalDocument] whenever it is parseable — declared HAL or
+     * not, so plain JSON/XML/YAML APIs still yield a navigable document (their fields become
+     * properties). Null when the body isn't structured data. Unlike the `hal+*`-gated path this
+     * feeds arbitrary bodies to the parsers, so any parser failure — not only [HalParseException]
+     * — means "not a document" rather than an error.
+     */
+    private fun parseDocument(rawResponse: HalHttpResponse, url: String): HalDocument? =
+        try {
+            HalParser.parse(rawResponse.body, rawResponse.contentType).copy(sourceUrl = url)
+        } catch (_: Exception) {
             null
         }
-
-        return NavigationResponse(raw = rawResponse, document = document, url = url)
-    }
 
     override fun close() = client.close()
 }

@@ -35,14 +35,22 @@ internal object JsonHalParser {
         if (el == null || el is JsonNull) return emptyMap()
         val obj = el as? JsonObject
             ?: throw HalParseException("_links must be a JSON object")
-        return obj.mapValues { (_, v) ->
-            when (v) {
-                is JsonArray  -> v.map { parseLinkObject(it as? JsonObject
-                    ?: throw HalParseException("Link array element must be an object")) }
-                is JsonObject -> listOf(parseLinkObject(v))
-                else          -> throw HalParseException("Unexpected _links value type for key")
-            }
-        }
+        return obj.mapValues { (_, v) -> parseLinkValue(v) }
+    }
+
+    /**
+     * A rel's value. Spec forms: a link object or an array of them. Two near-HAL forms used by
+     * real-world APIs (e.g. thecolorapi) are also accepted rather than failing the whole
+     * document: a bare href string, and a non-empty object of name→href strings — each entry
+     * becoming a [HalLink] under the rel, distinguished by [HalLink.name].
+     */
+    private fun parseLinkValue(v: JsonElement): List<HalLink> = when {
+        v is JsonArray -> v.flatMap { parseLinkValue(it) }
+        v is JsonObject && "href" in v -> listOf(parseLinkObject(v))
+        v is JsonPrimitive && v.isString -> listOf(HalLink(href = v.content))
+        v is JsonObject && v.isNotEmpty() && v.values.all { it is JsonPrimitive && it.isString } ->
+            v.entries.map { (name, href) -> HalLink(href = (href as JsonPrimitive).content, name = name) }
+        else -> throw HalParseException("Unexpected _links value for rel")
     }
 
     private fun parseLinkObject(obj: JsonObject): HalLink = HalLink(
