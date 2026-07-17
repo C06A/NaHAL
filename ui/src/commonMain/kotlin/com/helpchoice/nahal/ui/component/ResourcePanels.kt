@@ -33,12 +33,59 @@ import kotlinx.serialization.json.*
 
 // ── Headers panel ─────────────────────────────────────────────────────────────
 
+/**
+ * Headers whose value is a URL by definition, so a relative value is still followable
+ * (resolved against the response's own URL). Lower-case names.
+ */
+private val URL_VALUED_HEADERS = setOf("location", "content-location")
+
+/**
+ * The URL a header row offers to follow, or null when the value is not followable:
+ * any absolute-URL value, or a relative value of a [URL_VALUED_HEADERS] header
+ * resolved against [baseUrl].
+ */
+private fun headerFollowUrl(name: String, value: String, baseUrl: String): String? = when {
+    ABSOLUTE_URL.matches(value) -> value
+    name.lowercase() in URL_VALUED_HEADERS && value.isNotBlank() -> resolveUri(baseUrl, value)
+    else -> null
+}
+
+/**
+ * Whether a link's target is expected to be HAL: an explicit `hal+*` type, or no type at all —
+ * the default expectation on a HAL API. Such links get no "open externally" affordance.
+ */
+private fun expectsHal(type: String?): Boolean = type == null || "hal+" in type.lowercase()
+
+/** "Open in default application" affordance shown next to "follow" where the target may not be HAL. */
 @Composable
-fun HeadersPanel(headers: Map<String, String>) {
+fun OpenExternalLabel(url: String) {
+    val c = LocalNaHalColors.current
+    val uriHandler = LocalUriHandler.current
+    Text(
+        "open ⧉",
+        color = c.accent,
+        fontSize = 10.5.sp,
+        fontFamily = NaHalSansFont,
+        modifier = Modifier.clickable { uriHandler.openUri(url) },
+    )
+}
+
+/**
+ * Renders [headers]. When [onFollow] is set, a header value holding a URL (any absolute URL,
+ * or a relative `Location` / `Content-Location` resolved against the current node's URL)
+ * gets a follow affordance reporting the header name and the resolved URL.
+ */
+@Composable
+fun HeadersPanel(
+    headers: Map<String, String>,
+    onFollow: ((name: String, url: String) -> Unit)? = null,
+) {
     if (headers.isEmpty()) { EmptyState("none"); return }
+    val currentUrl = LocalCurrentUrl.current
     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
         headers.entries.forEachIndexed { i, (k, v) ->
             val c = LocalNaHalColors.current
+            val followUrl = if (onFollow != null) headerFollowUrl(k, v, currentUrl) else null
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -55,14 +102,27 @@ fun HeadersPanel(headers: Map<String, String>) {
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
                 )
-                SelectionContainer {
+                // Weight on the container, not the inner Text — inside SelectionContainer the
+                // Text is no longer a Row child, so RowScope.weight there is inert and a long
+                // value pushes the follow affordance past the right edge.
+                SelectionContainer(modifier = Modifier.weight(1f)) {
                     Text(
                         text = v,
                         color = c.text,
                         fontSize = 11.sp,
                         fontFamily = NaHalMonoFont,
-                        modifier = Modifier.weight(1f),
                     )
+                }
+                if (followUrl != null) {
+                    Text(
+                        "follow ↗",
+                        color = c.accent,
+                        fontSize = 10.5.sp,
+                        fontFamily = NaHalSansFont,
+                        modifier = Modifier.clickable { onFollow!!(k, followUrl) },
+                    )
+                    // A header value carries no media type, so the target may well not be HAL.
+                    OpenExternalLabel(followUrl)
                 }
             }
         }
@@ -216,6 +276,8 @@ fun LinksPanel(
                                         fontFamily = NaHalMonoFont,
                                         fontStyle = FontStyle.Italic,
                                     )
+                                } else if (!expectsHal(link.type)) {
+                                    OpenExternalLabel(resolveUri(LocalCurrentUrl.current, link.href))
                                 }
                             }
 
@@ -508,7 +570,9 @@ private fun JsonNode(
                 verticalAlignment = Alignment.Top,
             ) {
                 Text(key, color = c.accent, fontSize = 11.5.sp, fontFamily = NaHalMonoFont)
-                SelectionContainer {
+                // Constrained so a long value wraps instead of pushing the follow affordance
+                // past the right edge.
+                SelectionContainer(modifier = Modifier.weight(1f, fill = false)) {
                     Text(displayText, color = textColor, fontSize = 11.5.sp, fontFamily = NaHalMonoFont)
                 }
                 if (followable) {
@@ -519,6 +583,8 @@ private fun JsonNode(
                         fontFamily = NaHalSansFont,
                         modifier = Modifier.clickable { onFollow!!(path!!, value.content) },
                     )
+                    // A property value carries no media type, so the target may well not be HAL.
+                    OpenExternalLabel(value.content)
                 }
             }
         }

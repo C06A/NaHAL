@@ -28,15 +28,15 @@ class JsonHalParserTest {
         }
     }
 
-    @Test fun linkPrimitiveValueThrows() {
+    @Test fun linkNonStringPrimitiveValueThrows() {
         assertFailsWith<HalParseException> {
-            HalParser.parse("""{"_links": {"self": "not-a-link"}}""", "application/hal+json")
+            HalParser.parse("""{"_links": {"self": 42}}""", "application/hal+json")
         }
     }
 
-    @Test fun linkArrayElementNotObjectThrows() {
+    @Test fun linkArrayNonStringElementThrows() {
         assertFailsWith<HalParseException> {
-            HalParser.parse("""{"_links": {"items": ["not-a-link"]}}""", "application/hal+json")
+            HalParser.parse("""{"_links": {"items": [42]}}""", "application/hal+json")
         }
     }
 
@@ -44,6 +44,29 @@ class JsonHalParserTest {
         assertFailsWith<HalParseException> {
             HalParser.parse("""{"_links": {"self": {}}}""", "application/hal+json")
         }
+    }
+
+    // ---------- lenient near-HAL link forms ----------
+
+    @Test fun linkStringValueParsesAsHref() {
+        val doc = HalParser.parse("""{"_links": {"self": "/scheme?hex=0047AB"}}""", "application/hal+json")
+        assertEquals("/scheme?hex=0047AB", doc.link("self")?.href)
+    }
+
+    @Test fun linkArrayOfStringsParsesAsHrefs() {
+        val doc = HalParser.parse("""{"_links": {"items": ["/a", "/b"]}}""", "application/hal+json")
+        assertEquals(listOf("/a", "/b"), doc.links["items"]?.map { it.href })
+    }
+
+    @Test fun linkNameGroupParsesAsNamedLinks() {
+        // thecolorapi form: a rel whose value maps names to href strings.
+        val doc = HalParser.parse(
+            """{"_links": {"schemes": {"monochrome": "/scheme?mode=monochrome", "triad": "/scheme?mode=triad"}}}""",
+            "application/hal+json",
+        )
+        val schemes = doc.links["schemes"].orEmpty()
+        assertEquals(listOf("monochrome", "triad"), schemes.map { it.name })
+        assertEquals(listOf("/scheme?mode=monochrome", "/scheme?mode=triad"), schemes.map { it.href })
     }
 
     // ---------- _embedded error paths ----------

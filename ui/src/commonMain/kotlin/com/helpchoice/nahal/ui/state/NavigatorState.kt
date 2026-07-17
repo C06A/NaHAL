@@ -243,6 +243,39 @@ class NavigatorState(private val scope: CoroutineScope) {
     }
 
     /**
+     * Prepares a request to [url], the value of response header [name] on [node]. A header is not
+     * addressable by a [ResourcePath] (the grammar covers links and properties only), so this is a
+     * bare-URL send — the caller passes [url] already resolved to absolute. Like a property, a
+     * header carries no media type, so the builder opens with the HAL `Accept`.
+     */
+    fun prepareHeaderRequest(name: String, url: String, node: HistoryNode?) {
+        pendingRequest = PendingRequest(
+            url = url,
+            templated = '{' in url, vars = emptyMap(),
+            fromRel = "header:$name", method = "GET", type = null,
+            headers = mapOf("Accept" to HalHttpClient.HAL_ACCEPT),
+            cookies = emptyMap(), body = "",
+            parentId = node?.id ?: current?.id,
+        )
+    }
+
+    /**
+     * Reopens [node]'s request in the builder — same URL, headers, cookies and body prefilled —
+     * so it can be resent with a different method or body. A bare-URL send: [node]'s URL is
+     * already the final resolved one, there is no link to re-resolve. A non-text body is stored
+     * on the node only as a display placeholder (`«binary …»`), so it prefills empty.
+     */
+    fun prepareResend(node: HistoryNode) {
+        pendingRequest = PendingRequest(
+            url = node.url,
+            fromRel = node.fromRel, method = node.method,
+            headers = node.requestHeaders, cookies = node.requestCookies,
+            body = node.requestBody?.takeUnless { it.startsWith("«") } ?: "",
+            parentId = node.id,
+        )
+    }
+
+    /**
      * The path to [terminal] rooted at [node]'s nearest fetched ancestor, so plugins see the whole
      * embedding stack. Null when the chain has no [ResourcePath] representation — callers then
      * address [terminal] against [node]'s own document.

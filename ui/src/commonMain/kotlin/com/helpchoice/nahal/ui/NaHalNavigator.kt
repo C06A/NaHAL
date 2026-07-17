@@ -199,6 +199,9 @@ private fun NaHalNavigatorContent(state: NavigatorState, startUrl: String) {
                         onFollowProperty = { terminal, href ->
                             state.preparePropertyRequest(terminal, href, selectedNode)
                         },
+                        onFollowHeader = { name, url ->
+                            state.prepareHeaderRequest(name, url, selectedNode)
+                        },
                         onOpenEmbedded = { rel, idx ->
                             state.openEmbedded(selectedNode, rel, idx)
                         },
@@ -229,6 +232,7 @@ private fun CenterPanel(
     onSelectNode: (String) -> Unit,
     onFollow: (rel: String, index: Int, link: HalLink) -> Unit,
     onFollowProperty: (terminal: List<PathStep.Property>, href: String) -> Unit,
+    onFollowHeader: (name: String, url: String) -> Unit,
     onOpenEmbedded: (rel: String, idx: Int) -> Unit,
     onOpenArrayItem: (idx: Int) -> Unit,
 ) {
@@ -303,6 +307,7 @@ private fun CenterPanel(
                             doc = doc,
                             onFollow = onFollow,
                             onFollowProperty = onFollowProperty,
+                            onFollowHeader = onFollowHeader,
                             onOpenEmbedded = onOpenEmbedded,
                             onOpenArrayItem = onOpenArrayItem,
                         )
@@ -322,7 +327,10 @@ private fun CenterPanel(
                         )
                     }
                     viewKind == ViewKind.Request && viewMode == ViewMode.Pretty -> {
-                        val sections = buildRequestSections(node = node)
+                        val sections = buildRequestSections(
+                            node = node,
+                            onResend = { state.prepareResend(node) },
+                        )
                         Accordion(
                             sections = sections,
                             openSections = openReq,
@@ -343,6 +351,7 @@ private fun buildResponseSections(
     doc: HalDocument?,
     onFollow: (String, Int, HalLink) -> Unit,
     onFollowProperty: (List<PathStep.Property>, String) -> Unit,
+    onFollowHeader: (String, String) -> Unit,
     onOpenEmbedded: (String, Int) -> Unit,
     onOpenArrayItem: (Int) -> Unit,
 ): List<AccordionSection> = buildList {
@@ -350,7 +359,7 @@ private fun buildResponseSections(
         key = "headers",
         title = "Headers",
         count = node.response.headers.size,
-        content = { HeadersPanel(node.response.headers) },
+        content = { HeadersPanel(node.response.headers, onFollow = onFollowHeader) },
     ))
     add(AccordionSection(
         key = "cookies",
@@ -396,12 +405,30 @@ private fun buildResponseSections(
         add(AccordionSection(
             key = "body",
             title = "Body",
-            content = { RawJsonPanel(body = node.response.body) },
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // An HTML body is meant for a browser — offer the default application.
+                    if (looksLikeHtml(node)) OpenExternalLabel(node.url)
+                    RawJsonPanel(body = node.response.body)
+                }
+            },
         ))
     }
 }
 
-private fun buildRequestSections(node: HistoryNode): List<AccordionSection> = buildList {
+/** HTML by declared content type, or by body signature when the type is absent/generic. */
+private fun looksLikeHtml(node: HistoryNode): Boolean {
+    val ct = node.response.headers.entries
+        .firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value?.lowercase()
+    if (ct != null && ("text/html" in ct || "xhtml" in ct)) return true
+    val sig = node.response.body.trimStart().take(14).lowercase()
+    return sig.startsWith("<!doctype") || sig.startsWith("<html")
+}
+
+private fun buildRequestSections(
+    node: HistoryNode,
+    onResend: () -> Unit,
+): List<AccordionSection> = buildList {
     add(AccordionSection(
         key = "line",
         title = "Method · URL",
@@ -418,7 +445,12 @@ private fun buildRequestSections(node: HistoryNode): List<AccordionSection> = bu
                         color = c.text,
                         fontSize = 12.5.sp,
                         fontFamily = NaHalMonoFont,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
+                    // Embedded/array pseudo-nodes were never sent — nothing to resend.
+                    if (node.originStep == null) {
+                        ToggleButton(label = "Resend…", icon = "↻", onClick = onResend)
+                    }
                 }
                 node.fromRel?.let {
                     Text(
