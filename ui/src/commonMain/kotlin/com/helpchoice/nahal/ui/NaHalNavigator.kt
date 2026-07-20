@@ -254,8 +254,14 @@ private fun CenterPanel(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                // Section title
-                SectionTitle(if (viewKind == ViewKind.Request) "Request" else "Response")
+                // Section title + open-externally button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SectionTitle(if (viewKind == ViewKind.Request) "Request" else "Response")
+                    if (viewKind == ViewKind.Response) OpenResponseButton(node)
+                }
 
                 // Breadcrumb + status
                 Row(
@@ -405,24 +411,32 @@ private fun buildResponseSections(
         add(AccordionSection(
             key = "body",
             title = "Body",
-            content = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // An HTML body is meant for a browser — offer the default application.
-                    if (looksLikeHtml(node)) OpenExternalLabel(node.url)
-                    RawJsonPanel(body = node.response.body)
-                }
-            },
+            content = { RawJsonPanel(body = node.response.body) },
         ))
     }
 }
 
-/** HTML by declared content type, or by body signature when the type is absent/generic. */
-private fun looksLikeHtml(node: HistoryNode): Boolean {
-    val ct = node.response.headers.entries
-        .firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value?.lowercase()
-    if (ct != null && ("text/html" in ct || "xhtml" in ct)) return true
-    val sig = node.response.body.trimStart().take(14).lowercase()
-    return sig.startsWith("<!doctype") || sig.startsWith("<html")
+/**
+ * Opens the fetched body with the OS default application for its content type via
+ * [LocalExternalOpener]; falls back to opening the URL where the platform can't.
+ */
+@Composable
+private fun OpenResponseButton(node: HistoryNode) {
+    val opener = LocalExternalOpener.current
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val ct = node.response.contentType
+    val appName = remember(ct, opener) { opener?.appNameFor?.invoke(ct) }
+    ToggleButton(
+        label = appName?.let { "open with $it" } ?: "open",
+        icon = "⧉",
+        onClick = {
+            val resp = node.response
+            val opened = opener?.open?.invoke(
+                ExternalBody(resp.bytes, resp.body, ct, extensionFor(ct), node.url)
+            ) ?: false
+            if (!opened) uriHandler.openUri(node.url)
+        },
+    )
 }
 
 private fun buildRequestSections(
