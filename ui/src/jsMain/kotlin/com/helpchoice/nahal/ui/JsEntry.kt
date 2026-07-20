@@ -3,14 +3,21 @@ package com.helpchoice.nahal.ui
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.CanvasBasedWindow
+import com.helpchoice.nahal.ui.component.ExternalOpener
+import com.helpchoice.nahal.ui.component.LocalExternalOpener
 import com.helpchoice.nahal.ui.component.LocalFilePicker
 import com.helpchoice.nahal.ui.component.PickedFile
 import com.helpchoice.nahal.ui.component.guessContentType
 import kotlinx.browser.document
+import kotlinx.browser.window
 import org.khronos.webgl.ArrayBuffer
 import org.khronos.webgl.Int8Array
 import org.khronos.webgl.get
+import org.khronos.webgl.set
 import org.w3c.dom.HTMLInputElement
+import org.w3c.dom.url.URL
+import org.w3c.files.Blob
+import org.w3c.files.BlobPropertyBag
 import org.w3c.files.FileReader
 import org.w3c.files.get
 
@@ -20,11 +27,28 @@ fun main() {
         CompositionLocalProvider(
             LocalFilePicker provides { callback ->
                 openFilePickerOverlay(callback)
-            }
+            },
+            LocalExternalOpener provides ExternalOpener(
+                appNameFor = { null },   // browsers don't expose handler names
+                open = ::openBlobInNewTab,
+            ),
         ) {
             NaHalNavigator()
         }
     }
+}
+
+// Serves the already-fetched body as a Blob URL so the browser dispatches by MIME type —
+// correct for responses behind auth headers or non-GET requests the browser can't refetch.
+private fun openBlobInNewTab(body: com.helpchoice.nahal.ui.component.ExternalBody): Boolean {
+    val arr = Int8Array(body.bytes.size)
+    body.bytes.forEachIndexed { i, b -> arr[i] = b }
+    val blob = Blob(arrayOf(arr), BlobPropertyBag(type = body.contentType ?: "text/plain"))
+    val objUrl = URL.createObjectURL(blob)
+    val opened = window.open(objUrl, "_blank") != null   // null = popup blocked → caller falls back
+    // Delay revocation — the new tab may not have loaded the URL yet.
+    window.setTimeout({ URL.revokeObjectURL(objUrl) }, 60_000)
+    return opened
 }
 
 // Shows a native HTML overlay with a visible <input type="file"> so the user

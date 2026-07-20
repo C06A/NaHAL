@@ -112,6 +112,8 @@ class NavigatorState(private val scope: CoroutineScope) {
                         cookies = raw.cookies,
                         body = raw.body,
                         document = document,
+                        contentType = raw.contentType,
+                        bytes = raw.bytes,
                     ),
                     elapsedMs = elapsed,
                 )
@@ -138,6 +140,7 @@ class NavigatorState(private val scope: CoroutineScope) {
                         headers = emptyMap(), cookies = emptyMap(),
                         body = e.message ?: "Connection error",
                         document = null,
+                        contentType = "text/plain",
                     ),
                     elapsedMs = timer.elapsedNow().inWholeMilliseconds,
                 )
@@ -172,6 +175,7 @@ class NavigatorState(private val scope: CoroutineScope) {
                 status = 200, statusText = "Embedded",
                 headers = mapOf("Content-Type" to "application/hal+json (embedded)"),
                 cookies = emptyMap(), body = item.toRawJson(), document = item,
+                contentType = "application/hal+json",
             ),
             elapsedMs = 0, originStep = PathStep.Embedded(rel, index),
         )
@@ -193,6 +197,7 @@ class NavigatorState(private val scope: CoroutineScope) {
                 status = 200, statusText = "Embedded",
                 headers = mapOf("Content-Type" to "application/hal+json (embedded)"),
                 cookies = emptyMap(), body = item.toRawJson(), document = item,
+                contentType = "application/hal+json",
             ),
             elapsedMs = 0, originStep = PathStep.Item(index),
         )

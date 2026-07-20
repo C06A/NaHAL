@@ -59,6 +59,7 @@ dependencies {
     nahalRuntime(project(":ui"))
     nahalRuntime(project(":plugins:curie"))
     nahalRuntime(project(":plugins:base-url-rewriter"))
+    nahalRuntime(project(":plugins:logger"))
 }
 
 val nahalConfig = layout.buildDirectory.file("haldish-config.json")
@@ -71,7 +72,8 @@ val writeNahalConfig by tasks.registering {
             """
             {
               "com.helpchoice.nahal.plugin.curie.CuriePlugin": {},
-              "com.helpchoice.nahal.plugin.baseurlrewriter.BaseUrlRewriterPlugin": {}
+              "com.helpchoice.nahal.plugin.baseurlrewriter.BaseUrlRewriterPlugin": {},
+              "com.helpchoice.nahal.plugin.logger.LoggerPlugin": {}
             }
             """.trimIndent()
         )
@@ -90,7 +92,7 @@ kotlin.jvm {
 tasks.withType<JavaExec>().configureEach {
     if (name == "jvmRun") {
         group = "run"
-        description = "Runs the NaHAL desktop UI with the curie + base-url-rewriter plugins chained."
+        description = "Runs the NaHAL desktop UI with the curie + base-url-rewriter + logger plugins chained."
         val jvmMain = kotlin.jvm().compilations.getByName("main")
         dependsOn(jvmMain.compileTaskProvider, writeNahalConfig)
         classpath = files(

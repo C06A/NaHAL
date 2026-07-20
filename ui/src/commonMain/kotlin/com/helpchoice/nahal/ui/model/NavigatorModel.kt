@@ -31,6 +31,10 @@ data class FetchedResponse(
     val cookies: Map<String, String>,
     val body: String,
     val document: HalDocument?,
+    /** Raw Content-Type header value; may carry parameters (";charset=..."). */
+    val contentType: String? = null,
+    /** Wire bytes of the body — array identity, not content, drives [equals]; the UI never compares instances. */
+    val bytes: ByteArray = body.encodeToByteArray(),
 )
 
 /** How the request body is built in the request editor. */

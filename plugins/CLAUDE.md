@@ -32,13 +32,14 @@ generates into the plugin's `build/` dir, so `:core` discovers and activates the
 ./gradlew :plugins:curie:jvmRun              # CURIE-prefixed hrefs expanded
 ./gradlew :plugins:base-url-rewriter:jvmRun  # relative link hrefs resolved
 ./gradlew :plugins:logger:jvmRun             # exchanges written to ./haldish-log
-./gradlew :plugins:chain:jvmRun              # curie + base-url-rewriter together
+./gradlew :plugins:chain:jvmRun              # curie + base-url-rewriter + logger together
 ./gradlew :plugins:api-key:jvmRun -PapiKey=secret
 ./gradlew :plugins:bearer-token:jvmRun -Ptoken=eyJhbGci...
 ```
 
-`:plugins:chain:jvmRun` puts `curie` and `base-url-rewriter` on the classpath and lists
-both in its config (curie first — its expansion runs before base-URL resolution).
+`:plugins:chain:jvmRun` puts `curie`, `base-url-rewriter` and `logger` on the classpath and
+lists all three in its config (curie first — its expansion runs before base-URL resolution;
+logger last — it sees the final request).
 
 ## Module overview
 
