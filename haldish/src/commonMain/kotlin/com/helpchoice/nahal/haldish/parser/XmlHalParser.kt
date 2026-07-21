@@ -10,10 +10,8 @@ import nl.adaptivity.xmlutil.xmlStreaming
 internal object XmlHalParser {
 
     fun parse(body: String): HalDocument {
-        // An empty/blank body is not a valid HAL XML document. Guard explicitly:
-        // the browser DOMParser backend yields a <parsererror> root for "" rather
-        // than failing, so without this it would parse "successfully" there while
-        // throwing on every other target.
+        // Explicit check: the browser DOMParser backend never throws — it returns a
+        // <parsererror> document instead, which would otherwise parse as a resource.
         if (body.isBlank()) throw HalParseException("Empty XML document")
         return try {
             val reader = xmlStreaming.newReader(body)
