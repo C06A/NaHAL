@@ -39,9 +39,19 @@ kotlin {
     // Linux and Windows desktop are covered by the jvm() target via Compose Desktop.
     // Native linuxX64/linuxArm64/mingwX64 have no Compose Multiplatform artifacts.
 
-    iosX64()
-    iosArm64()
-    iosSimulatorArm64()
+    // The Kotlin/Native + Compose Multiplatform 1.8.x UIKit bindings are generated against the
+    // iOS 17 SDK and reference iOS 17 symbols (UITextLoupeSession, UIAccessibilityTraitToggleButton,
+    // …). The newest Xcode this macOS (12 Monterey) supports is 14, whose iOS 16 SDK lacks them,
+    // so linking the iOS test executables fails on undefined symbols. Resolve them dynamically at
+    // load time instead — they are only touched at runtime on iOS 17+. Scoped to the test binaries
+    // (the main iOS compilations produce klibs, which don't link). Remove once the toolchain
+    // provides an iOS 17+ SDK.
+    val allowIos17Symbols: org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget.() -> Unit = {
+        binaries.all { linkerOpts("-undefined", "dynamic_lookup") }
+    }
+    iosX64(configure = allowIos17Symbols)
+    iosArm64(configure = allowIos17Symbols)
+    iosSimulatorArm64(configure = allowIos17Symbols)
 
     applyDefaultHierarchyTemplate()
 

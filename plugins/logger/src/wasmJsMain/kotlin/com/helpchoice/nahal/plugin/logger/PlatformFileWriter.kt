@@ -14,17 +14,16 @@ internal actual fun platformWriteFile(filePath: String, content: String) {
     println("[HALDiSh Logger] $filePath\n$content")
 }
 
-internal actual fun platformCurrentTimestamp(): String {
-    // JS Date interop via @JsExport helper — simple epoch-based calculation
-    val ms = kotlinx.browser.window.asDynamic().Date.now() as Double
-    val totalSec = (ms / 1000).toLong()
-    val sec  = (totalSec % 60).toInt()
-    val min  = ((totalSec / 60) % 60).toInt()
-    val hour = ((totalSec / 3600) % 24).toInt()
-    // Date portion via JS interop
-    val d = js("new Date()")
-    val year  = (d.getFullYear()  as Int).toString().padStart(4, '0')
-    val month = ((d.getMonth() as Int) + 1).toString().padStart(2, '0')
-    val day   = (d.getDate()   as Int).toString().padStart(2, '0')
-    return "${year}${month}${day}T${hour.toString().padStart(2,'0')}${min.toString().padStart(2,'0')}${sec.toString().padStart(2,'0')}"
-}
+// Kotlin/Wasm requires a js() call to be the whole body of a top-level function and to
+// return an interop-supported type — hence the formatting happens in JS rather than Kotlin.
+private fun jsLocalTimestamp(): String =
+    js(
+        """(function() {
+            var d = new Date();
+            function p(n, w) { return String(n).padStart(w, '0'); }
+            return p(d.getFullYear(), 4) + p(d.getMonth() + 1, 2) + p(d.getDate(), 2) + 'T' +
+                   p(d.getHours(), 2) + p(d.getMinutes(), 2) + p(d.getSeconds(), 2);
+        })()"""
+    )
+
+internal actual fun platformCurrentTimestamp(): String = jsLocalTimestamp()

@@ -7,8 +7,16 @@ import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 internal actual fun coreEnvVar(name: String): String? =
     js("(typeof process !== 'undefined') ? (process.env[name] || null) : null") as? String
 
+// eval('require') keeps webpack from statically resolving 'fs', which breaks browser bundles;
+// the Node check makes the browser path fail loud instead of at the require call.
 internal actual fun coreReadTextFile(path: String): String =
-    js("require('fs').readFileSync(path, 'utf8')") as String
+    js(
+        """(function() {
+            if (typeof process === 'undefined' || !process.versions || !process.versions.node)
+                throw Error('coreReadTextFile requires Node.js (no filesystem in the browser)');
+            return eval('require')('fs').readFileSync(path, 'utf8');
+        })()"""
+    ) as String
 
 internal actual fun coreParseYaml(content: String): Map<String, Any?> {
     val root = try { Yaml.default.parseToYamlNode(content) }

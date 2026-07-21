@@ -10,6 +10,9 @@ import nl.adaptivity.xmlutil.xmlStreaming
 internal object XmlHalParser {
 
     fun parse(body: String): HalDocument {
+        // Explicit check: the browser DOMParser backend never throws — it returns a
+        // <parsererror> document instead, which would otherwise parse as a resource.
+        if (body.isBlank()) throw HalParseException("Empty XML document")
         return try {
             val reader = xmlStreaming.newReader(body)
             try {
