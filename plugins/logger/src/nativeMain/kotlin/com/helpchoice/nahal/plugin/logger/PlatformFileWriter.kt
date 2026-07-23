@@ -6,22 +6,11 @@ import kotlinx.cinterop.*
 import platform.posix.*
 
 /**
- * Native (Linux / macOS / Windows via MinGW) implementation using POSIX file APIs.
- * Covers all targets in `nativeMain` (linuxMain, macosMain, mingwMain, iosMain).
+ * Native file I/O shared across all native targets (linux, apple, mingw) using
+ * portable C stdio. Directory creation differs per platform (POSIX 2-arg `mkdir`
+ * vs Windows 1-arg `_mkdir`) and lives in `platformMakeDir` actuals under the
+ * posixMain and mingwMain source sets.
  */
-
-internal actual fun platformMakeDir(path: String) {
-    // Create each directory component, ignoring EEXIST at each step.
-    val parts = path.replace('\\', '/').split('/')
-    val sb = StringBuilder()
-    for (part in parts) {
-        if (part.isEmpty()) { sb.append('/'); continue }
-        if (sb.isNotEmpty() && sb.last() != '/') sb.append('/')
-        sb.append(part)
-        mkdir(sb.toString(), (S_IRWXU or S_IRGRP or S_IXGRP or S_IROTH or S_IXOTH).convert())
-        // Ignoring errors: EEXIST is expected for existing dirs; propagate nothing.
-    }
-}
 
 internal actual fun platformWriteFile(filePath: String, content: String) {
     val fp = fopen(filePath, "w") ?: return

@@ -6,7 +6,6 @@ import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.reinterpret
 import platform.windows.GetProcAddress
-import platform.windows.HINSTANCE
 
 internal actual fun platformDlsym(handle: COpaquePointer, symbol: String): CPointer<*>? =
-    GetProcAddress(handle.reinterpret<HINSTANCE.Var>().value, symbol)
+    GetProcAddress(handle.reinterpret(), symbol)
