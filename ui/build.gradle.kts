@@ -1,4 +1,5 @@
 import com.vanniktech.maven.publish.SonatypeHost
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -61,6 +62,22 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))
+        }
+    }
+}
+
+// Desktop installers (Compose Desktop, JVM target). Only the format matching the
+// build host is produced by `packageDistributionForCurrentOS`:
+//   macOS -> .dmg   Linux -> .deb   Windows -> .msi
+compose.desktop {
+    application {
+        mainClass = "com.helpchoice.nahal.ui.MainKt"
+        nativeDistributions {
+            targetFormats(TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.Msi)
+            packageName    = "NahalNavigator"
+            packageVersion = version.toString()
+            description    = "Nahal HAL navigator desktop client"
+            vendor         = "HelpChoice"
         }
     }
 }
