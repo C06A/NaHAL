@@ -35,12 +35,18 @@ internal fun buildConfiguredPlugin(): HaldishPlugin {
 
     val plugins = mutableListOf<HaldishPlugin>()
     walkTree(rawMap, "", plugins)
+    return chainedPlugin(plugins)
+}
 
-    return when (plugins.size) {
-        0 -> CoreNoOpPlugin
-        1 -> plugins[0]
-        else -> ChainedPlugin(plugins)
-    }
+/**
+ * Combines [plugins] into a single [HaldishPlugin] whose hooks run in list order. Empty → a no-op
+ * plugin; one → that plugin unchanged. Public so embedders (e.g. the desktop UI's drop-in plugins
+ * directory) can chain plugins they discovered themselves and hand the result to [HalNavigator].
+ */
+fun chainedPlugin(plugins: List<HaldishPlugin>): HaldishPlugin = when (plugins.size) {
+    0 -> CoreNoOpPlugin
+    1 -> plugins[0]
+    else -> ChainedPlugin(plugins)
 }
 
 private fun walkTree(node: Map<String, Any?>, path: String, acc: MutableList<HaldishPlugin>) {

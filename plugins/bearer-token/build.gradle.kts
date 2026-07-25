@@ -18,11 +18,14 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { browser() }
 
-    linuxX64()
+    // Shared libraries (base name libhaldish_plugin.*) let this plugin be loaded dynamically by
+    // haldish's native NativeDylibPluginAdapter via HALDISH_PLUGIN_PATH. The @CName C bridge lives
+    // per-platform in src/{apple,linux,mingw}Main/.../CApi.kt (this is a per-platform module).
+    linuxX64   { binaries { sharedLib { baseName = "haldish_plugin" } } }
     linuxArm64()
-    macosX64()
-    macosArm64()
-    mingwX64()
+    macosX64   { binaries { sharedLib { baseName = "haldish_plugin" } } }
+    macosArm64 { binaries { sharedLib { baseName = "haldish_plugin" } } }
+    mingwX64   { binaries { sharedLib { baseName = "haldish_plugin" } } }
     iosX64()
     iosArm64()
     iosSimulatorArm64()

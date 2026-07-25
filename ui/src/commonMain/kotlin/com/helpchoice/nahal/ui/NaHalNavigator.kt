@@ -21,6 +21,7 @@ import com.helpchoice.nahal.haldish.model.HalLink
 import com.helpchoice.nahal.haldish.model.PathStep
 import com.helpchoice.nahal.ui.component.*
 import com.helpchoice.nahal.ui.model.*
+import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import com.helpchoice.nahal.ui.state.NavigatorState
 import com.helpchoice.nahal.ui.state.rememberNavigatorState
 
@@ -32,8 +33,8 @@ private enum class ViewMode  { Pretty,   Raw     }
 // ── Root composable ───────────────────────────────────────────────────────────
 
 @Composable
-fun NaHalNavigator(startUrl: String = "") {
-    val state = rememberNavigatorState()
+fun NaHalNavigator(startUrl: String = "", plugin: HaldishPlugin? = null) {
+    val state = rememberNavigatorState(plugin)
     NaHalTheme {
         NaHalNavigatorContent(state = state, startUrl = startUrl)
     }

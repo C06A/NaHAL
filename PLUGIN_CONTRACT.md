@@ -303,7 +303,7 @@ int main(void) {
 
 ## C callback reference
 
-All three callbacks are **optional** — pass `NULL` (or omit from the dynamic library) for any hook you do not need.
+All four callbacks are **optional** — pass `NULL` (or omit from the dynamic library) for any hook you do not need.
 
 ### `haldish_plugin_init`
 
@@ -312,6 +312,36 @@ void haldish_plugin_init(const char* platform, const char* version);
 ```
 
 Called once on the first HTTP operation.  `platform` is one of `"linux"`, `"windows"`, `"apple"`, etc.
+
+---
+
+### `haldish_plugin_pre_link`
+
+```c
+const char* haldish_plugin_pre_link(
+    const char* rel,        /* the relation name being followed */
+    const char* href,       /* the link's current href (may be a URI template) */
+    int         templated,  /* 1 if href is a URI template, else 0 */
+    const char* type,       /* link "type", NULL if absent */
+    const char* name,       /* link "name", NULL if absent */
+    const char* title,      /* link "title", NULL if absent */
+    const char* root_body,  /* the root document's raw body (JSON/XML/YAML), NULL if unavailable */
+    const char* path_json   /* the ResourcePath from the root to this link, as JSON */
+);
+```
+
+Fires before a link (or property) is followed, giving the plugin the target link plus full
+document context — the raw `root_body` (re-parse it to inspect CURIE collections, ancestors, etc.)
+and the `path_json` locating the link within it. Not called for bare-URL requests.
+
+Return `NULL` to follow the link unchanged, or a **JSON string** overriding the link fields:
+
+```json
+{ "href": "https://…", "templated": false, "type": "…", "name": "…", "title": "…" }
+```
+
+Any key absent from the JSON keeps its original value. Same memory rule as below: the returned
+pointer must remain valid until the next call to this function.
 
 ---
 

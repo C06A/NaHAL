@@ -1,0 +1,9 @@
+# ChainPlugin composes other plugins and has no meaningful zero-arg form. To activate a chain
+# via ServiceLoader, replace this file with one naming a concrete subclass that supplies the
+# chained plugins, e.g.:
+#   com.example.MyChain
+#
+# Example subclass:
+#   class MyChain : ChainPlugin(CuriePlugin(), BaseUrlRewriterPlugin())
+#
+# This file is intentionally empty so the module compiles without auto-registering an empty chain.

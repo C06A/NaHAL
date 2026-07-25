@@ -18,8 +18,27 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { browser() }
 
-    linuxX64()
-    linuxArm64()
+    // Native plugin shared library (base name libhaldish_plugin.*): a batteries-included native
+    // chain — curie → base-url-rewriter → logger, the same order as `jvmRun` — that haldish's
+    // NativeDylibPluginAdapter can dlopen via HALDISH_PLUGIN_PATH. Built from a separate "pluginLib"
+    // compilation (associated with main so it can use ChainPlugin) so the published
+    // haldish-plugin-chain klib stays a generic combinator with no dependency on the other plugin
+    // modules. See src/nativePluginMain/.../CApi.kt.
+    val configureChainPluginLib: org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget.() -> Unit = {
+        val libCompilation = compilations.create("pluginLib") {
+            defaultSourceSet.kotlin.srcDir("src/nativePluginMain/kotlin")
+            dependencies {
+                implementation(project(":plugins:curie"))
+                implementation(project(":plugins:base-url-rewriter"))
+                implementation(project(":plugins:logger"))
+            }
+        }
+        libCompilation.associateWith(compilations.getByName("main"))
+        binaries.sharedLib("haldish_plugin") {
+            compilation = libCompilation
+            baseName = "haldish_plugin"
+        }
+    }
 
     // The macOS targets additionally build a standalone desktop executable that launches the
     // NaHAL UI with the curie → base-url-rewriter → logger plugins active — the native
@@ -44,10 +63,12 @@ kotlin {
             baseName = "NaHAL"
         }
     }
-    macosX64 { configureChainApp() }
-    macosArm64 { configureChainApp() }
 
-    mingwX64()
+    linuxX64   { configureChainPluginLib() }
+    linuxArm64()
+    macosX64   { configureChainApp(); configureChainPluginLib() }
+    macosArm64 { configureChainApp(); configureChainPluginLib() }
+    mingwX64   { configureChainPluginLib() }
     iosX64()
     iosArm64()
     iosSimulatorArm64()

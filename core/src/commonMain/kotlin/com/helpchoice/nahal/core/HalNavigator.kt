@@ -2,6 +2,7 @@ package com.helpchoice.nahal.core
 
 import com.helpchoice.nahal.core.plugin.buildConfiguredPlugin
 import com.helpchoice.nahal.haldish.http.HalHttpClient
+import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalHttpResponse
 import com.helpchoice.nahal.haldish.http.HalRequestBody
@@ -16,6 +17,13 @@ class HalNavigator(
     private val client: HalHttpClient = HalHttpClient(pluginOverride = buildConfiguredPlugin()),
     val config: NavigatorConfig = NavigatorConfig(),
 ) : AutoCloseable {
+
+    /**
+     * Navigator driven by an explicit [plugin] — e.g. plugins an embedding application assembled
+     * itself (a drop-in plugins directory) — instead of the `HALDISH_CONFIG`-driven default.
+     */
+    constructor(plugin: HaldishPlugin, config: NavigatorConfig = NavigatorConfig())
+        : this(HalHttpClient(pluginOverride = plugin), config)
 
     suspend fun navigate(
         resource: HalDocument,

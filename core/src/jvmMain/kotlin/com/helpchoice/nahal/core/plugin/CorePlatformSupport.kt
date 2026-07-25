@@ -6,7 +6,11 @@ import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import java.io.File
 import java.io.IOException
 
-internal actual fun coreEnvVar(name: String): String? = System.getenv(name)
+// A JVM process cannot set its own environment variables, so an embedding application (e.g. the
+// desktop UI wiring up a drop-in plugins directory) points the loader at a config by setting the
+// same name as a system property. System property wins; env var is the fallback.
+internal actual fun coreEnvVar(name: String): String? =
+    System.getProperty(name) ?: System.getenv(name)
 
 internal actual fun coreReadTextFile(path: String): String =
     try { File(path).readText() }
@@ -37,7 +41,10 @@ private fun YamlNode.toPlainAny(): Any? = when (this) {
 }
 
 internal actual fun coreInstantiatePlugin(fqn: String): HaldishPlugin? {
-    val cls = try { Class.forName(fqn) } catch (_: ClassNotFoundException) { return null }
+    // Resolve through the thread context classloader so plugin jars added at runtime (e.g. the
+    // desktop UI's drop-in plugins directory, loaded via a child URLClassLoader) are visible.
+    val loader = Thread.currentThread().contextClassLoader ?: ClassLoader.getSystemClassLoader()
+    val cls = try { Class.forName(fqn, true, loader) } catch (_: ClassNotFoundException) { return null }
     if (!HaldishPlugin::class.java.isAssignableFrom(cls))
         throw PluginConfigException("$fqn exists on the classpath but does not implement HaldishPlugin")
     return try {

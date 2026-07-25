@@ -1,9 +1,17 @@
 package com.helpchoice.nahal.haldish.model
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /**
  * One hop in a [ResourcePath] from a root [HalDocument] to a link or property that yields a URL.
@@ -139,6 +147,22 @@ data class ResourcePath(val steps: List<PathStep>) {
     private fun JsonElement.elementAt(index: Int): JsonElement? =
         (this as? JsonArray)?.getOrNull(index)
 
+    /**
+     * Serializes [steps] to a JSON array so a path can cross a boundary that carries only strings —
+     * e.g. the `haldish_plugin_pre_link` C ABI — and be rebuilt with [fromJson]. Each step is a
+     * tagged object: `{"t":"item|embedded|link|property", …}`.
+     */
+    fun toJson(): String = buildJsonArray {
+        for (step in steps) add(buildJsonObject {
+            when (step) {
+                is PathStep.Item     -> { put("t", "item"); put("index", step.index) }
+                is PathStep.Embedded -> { put("t", "embedded"); put("rel", step.rel); put("index", step.index) }
+                is PathStep.Link     -> { put("t", "link"); put("rel", step.rel); put("index", step.index) }
+                is PathStep.Property -> { put("t", "property"); put("name", step.name); step.index?.let { put("index", it) } }
+            }
+        })
+    }.toString()
+
     companion object {
         const val SELF_REL = "self"
 
@@ -152,5 +176,24 @@ data class ResourcePath(val steps: List<PathStep>) {
         /** A top-level property chain whose string value is the URL: `property("data", "url")` → `$.data.url`. */
         fun property(vararg names: String): ResourcePath =
             ResourcePath(names.map { PathStep.Property(it) })
+
+        /** Rebuilds a path from [toJson] output. Unknown/malformed steps are skipped; on any parse
+         *  failure an empty (`self`) path is returned. */
+        fun fromJson(json: String): ResourcePath = try {
+            val steps = (Json.parseToJsonElement(json) as JsonArray).mapNotNull { el ->
+                val o = el.jsonObject
+                val idx = o["index"]?.jsonPrimitive?.intOrNull
+                when (o["t"]?.jsonPrimitive?.content) {
+                    "item"     -> PathStep.Item(o.getValue("index").jsonPrimitive.int)
+                    "embedded" -> PathStep.Embedded(o.getValue("rel").jsonPrimitive.content, idx ?: 0)
+                    "link"     -> PathStep.Link(o.getValue("rel").jsonPrimitive.content, idx ?: 0)
+                    "property" -> PathStep.Property(o.getValue("name").jsonPrimitive.content, idx)
+                    else       -> null
+                }
+            }
+            ResourcePath(steps)
+        } catch (_: Exception) {
+            ResourcePath(emptyList())
+        }
     }
 }

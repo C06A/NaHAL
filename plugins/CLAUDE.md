@@ -73,3 +73,35 @@ hooks, all with default no-op impls:
 | `preLink(link, path, rootDocument)` | Before following a link/property; `path` (a `ResourcePath`) addresses the target from `rootDocument`, `path.terminalRel` is the rel, `path.documentsToContainer(rootDocument)` walks the ancestors |
 | `preRequest(request)` | Before every HTTP request — modify URL/method/headers/cookies/body |
 | `postResponse(document, response)` | After a HAL response is parsed — add/remove/modify links, embedded, properties |
+
+## Release artifacts (runtime-dependency libraries)
+
+Each plugin ships as a library the NaHAL app loads at runtime, one asset per plugin per platform
+(root `stagePluginArtifacts` task → `build/release/`; also pulled in by `stageReleaseArtifacts`):
+
+- **JVM** — `haldish-plugin-<name>-<version>.jar` (thin jar). Drop it into the desktop app's
+  plugins directory (`$NAHAL_PLUGINS_DIR`, else `./plugins`); the app discovers it via
+  `ServiceLoader` (`jvmMain/resources/META-INF/services/…HaldishPlugin`) and injects it into the
+  navigator. `curie`/`logger` register an active service; `api-key`/`chain`/`bearer-token`/
+  `base-url-rewriter` ship a commented template (they need config, so register a configured
+  subclass). Or point `HALDISH_PLUGIN_PATH` at the jar (single-plugin, ServiceLoader).
+
+- **Native** — `haldish-plugin-<name>-<platform>-<version>.zip` containing `libhaldish_plugin.*`
+  (+ header). Point `HALDISH_PLUGIN_PATH` at the lib; haldish's `NativeDylibPluginAdapter`
+  `dlopen`s it and resolves the `haldish_plugin_*` C symbols. The `@CName` C bridge lives in
+  `src/nativeMain/.../CApi.kt` (or per-platform `src/{apple,linux,mingw}Main` for the per-platform
+  modules) and delegates to `haldish`'s `NativePluginBridge`. The C `init` contract carries no
+  config, so native builds read theirs from `HALDISH_PLUGIN_*` env vars:
+
+  | Plugin | Hooks exported | Env config |
+  |---|---|---|
+  | `api-key` | init, pre_request | `HALDISH_PLUGIN_API_KEY`, `HALDISH_PLUGIN_API_KEY_HEADER` |
+  | `bearer-token` | init, pre_request | `HALDISH_PLUGIN_API_TOKEN`, `HALDISH_PLUGIN_API_TOKEN_HEADER` |
+  | `logger` | init, pre_request, post_response | `HALDISH_PLUGIN_LOG_DIR` |
+  | `curie` | init, pre_link | — |
+  | `base-url-rewriter` | init, pre_link | `HALDISH_PLUGIN_BASE_URL` |
+  | `chain` | init, pre_link, pre_request, post_response | (curie→base-url-rewriter→logger, batteries-included) |
+
+Browser JS is excluded (no runtime dynamic-library loading). `chain`'s shared lib is built from a
+separate `pluginLib` compilation so the published `haldish-plugin-chain` klib stays a generic
+combinator with no dependency on the other plugin modules.

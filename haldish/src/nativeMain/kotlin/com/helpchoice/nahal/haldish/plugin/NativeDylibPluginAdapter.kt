@@ -7,6 +7,7 @@ import com.helpchoice.nahal.haldish.http.HalHttpResponse
 import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
+import com.helpchoice.nahal.haldish.model.ResourcePath
 import io.ktor.http.HttpMethod
 import kotlinx.cinterop.*
 import kotlinx.serialization.json.*
@@ -17,12 +18,26 @@ import kotlinx.serialization.json.*
  *
  * ## Plugin library contract
  *
- * The plugin library **may** export any (or all) of these three C functions;
+ * The plugin library **may** export any (or all) of these four C functions;
  * missing symbols are treated as no-ops:
  *
  * ```c
  * // Called once at startup.
  * void haldish_plugin_init(const char* platform, const char* version);
+ *
+ * // Called before a HAL link/property is followed.  Return NULL to keep the link, or a JSON
+ * // string overriding its fields ({"href","templated","type","name","title"}).  `root_body` is
+ * // the root document's raw body (re-parse for context) and `path_json` locates the link in it.
+ * const char* haldish_plugin_pre_link(
+ *     const char* rel,
+ *     const char* href,
+ *     int         templated,
+ *     const char* type,           // NULL if absent
+ *     const char* name,           // NULL if absent
+ *     const char* title,          // NULL if absent
+ *     const char* root_body,      // NULL if unavailable
+ *     const char* path_json
+ * );
  *
  * // Called before each request.  Return NULL to keep the request unchanged,
  * // or return a JSON string describing the fields to override.
@@ -83,6 +98,7 @@ import kotlinx.serialization.json.*
 internal class NativeDylibPluginAdapter private constructor(
     private val handle: COpaquePointer,
     private val initSym:    COpaquePointer?,
+    private val preLinkSym: COpaquePointer?,
     private val preReqSym:  COpaquePointer?,
     private val postResSym: COpaquePointer?,
 ) : HaldishPlugin {
@@ -92,14 +108,15 @@ internal class NativeDylibPluginAdapter private constructor(
 
         /**
          * Attempt to resolve plugin symbols from an open [handle].
-         * Returns `null` if none of the three expected symbols is present.
+         * Returns `null` if none of the four expected symbols is present.
          */
         fun from(handle: COpaquePointer): NativeDylibPluginAdapter? {
             val init    = platformDlsym(handle, "haldish_plugin_init")
+            val preLink = platformDlsym(handle, "haldish_plugin_pre_link")
             val preReq  = platformDlsym(handle, "haldish_plugin_pre_request")
             val postRes = platformDlsym(handle, "haldish_plugin_post_response")
-            if (init == null && preReq == null && postRes == null) return null
-            return NativeDylibPluginAdapter(handle, init, preReq, postRes)
+            if (init == null && preLink == null && preReq == null && postRes == null) return null
+            return NativeDylibPluginAdapter(handle, init, preLink, preReq, postRes)
         }
     }
 
@@ -113,6 +130,33 @@ internal class NativeDylibPluginAdapter private constructor(
         memScoped {
             fn(config.platform.cstr.ptr, config.version.cstr.ptr)
         }
+    }
+
+    override fun preLink(link: HalLink, path: ResourcePath, rootDocument: HalDocument): HalLink {
+        val fn = preLinkSym?.reinterpret<CFunction<(
+            CPointer<ByteVar>?,  // rel
+            CPointer<ByteVar>?,  // href
+            Int,                  // templated
+            CPointer<ByteVar>?,  // type
+            CPointer<ByteVar>?,  // name
+            CPointer<ByteVar>?,  // title
+            CPointer<ByteVar>?,  // root_body (rootDocument.rawBody)
+            CPointer<ByteVar>?,  // path_json (ResourcePath.toJson)
+        ) -> CPointer<ByteVar>?>>() ?: return link
+
+        val resultJson: String? = memScoped {
+            fn(
+                path.terminalRel.cstr.ptr,
+                link.href.cstr.ptr,
+                if (link.templated) 1 else 0,
+                link.type?.cstr?.ptr,
+                link.name?.cstr?.ptr,
+                link.title?.cstr?.ptr,
+                rootDocument.rawBody?.cstr?.ptr,
+                path.toJson().cstr.ptr,
+            )?.toKString()
+        }
+        return resultJson?.let { applyPreLinkDiff(it, link) } ?: link
     }
 
     override fun preRequest(request: HalHttpRequest): HalHttpRequest {
@@ -208,6 +252,17 @@ internal class NativeDylibPluginAdapter private constructor(
     }
 
     // ── JSON diff parsers ─────────────────────────────────────────────────────
+
+    private fun applyPreLinkDiff(jsonStr: String, original: HalLink): HalLink = try {
+        val obj = json.parseToJsonElement(jsonStr).jsonObject
+        original.copy(
+            href      = obj["href"]?.jsonPrimitive?.contentOrNull ?: original.href,
+            templated = obj["templated"]?.jsonPrimitive?.booleanOrNull ?: original.templated,
+            type      = obj["type"]?.jsonPrimitive?.contentOrNull ?: original.type,
+            name      = obj["name"]?.jsonPrimitive?.contentOrNull ?: original.name,
+            title     = obj["title"]?.jsonPrimitive?.contentOrNull ?: original.title,
+        )
+    } catch (_: Throwable) { original }
 
     private fun applyPreRequestDiff(jsonStr: String, original: HalHttpRequest): HalHttpRequest {
         return try {

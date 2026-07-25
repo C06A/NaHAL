@@ -10,6 +10,7 @@ import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
 import com.helpchoice.nahal.haldish.model.PathStep
 import com.helpchoice.nahal.haldish.model.ResourcePath
+import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import com.helpchoice.nahal.haldish.uritemplate.UriTemplate
 import com.helpchoice.nahal.haldish.uritemplate.UriTemplateVars
 import com.helpchoice.nahal.ui.model.*
@@ -22,8 +23,8 @@ import kotlinx.serialization.json.*
 import kotlin.time.TimeSource
 
 @Stable
-class NavigatorState(private val scope: CoroutineScope) {
-    private val navigator = HalNavigator()
+class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? = null) {
+    private val navigator = if (plugin != null) HalNavigator(plugin) else HalNavigator()
 
     var history by mutableStateOf<List<HistoryNode>>(emptyList())
         private set
@@ -344,7 +345,7 @@ private fun HalLink.toJsonObject(): JsonObject = buildJsonObject {
 }
 
 @Composable
-fun rememberNavigatorState(): NavigatorState {
+fun rememberNavigatorState(plugin: HaldishPlugin? = null): NavigatorState {
     val scope = rememberCoroutineScope()
-    return remember { NavigatorState(scope) }
+    return remember { NavigatorState(scope, plugin) }
 }
