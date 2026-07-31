@@ -214,6 +214,7 @@ fun ResponseCookiesPanel(cookies: List<CookieInfo>) {
 fun LinksPanel(
     document: HalDocument,
     onFollow: (rel: String, index: Int, link: HalLink) -> Unit,
+    onFollowProfile: (profile: String) -> Unit,
 ) {
     val c = LocalNaHalColors.current
     val uriHandler = LocalUriHandler.current
@@ -298,8 +299,13 @@ fun LinksPanel(
                                     link.hreflang?.let { MetaTag("lang", it) }
                                     link.type?.let { MetaTag("type", it) }
                                     val currentUrl = LocalCurrentUrl.current
+                                    // A profile is a URI (RFC 6906), so it is followed in-app like
+                                    // any other — through the plugins, verbatim, with no field of
+                                    // the holding link mixed in. Not handed to the browser: the
+                                    // value need not resolve, and a non-URI one used to take the
+                                    // whole app down inside Desktop.browse.
                                     link.profile?.let { v ->
-                                        MetaTagLink("profile", v) { uriHandler.openUri(resolveUri(currentUrl, v)) }
+                                        MetaTagLink("profile", v) { onFollowProfile(v) }
                                     }
                                     link.deprecation?.let { v ->
                                         MetaTagLink("deprecated", v, warn = true) { uriHandler.openUri(resolveUri(currentUrl, v)) }

@@ -295,11 +295,19 @@ fun RequestBuilder(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // The Accept line is elastic and the button is not: a followed link with no media type
+            // falls back to the full HAL Accept (five types with q-values), which in the graph
+            // layout's 640dp modal is wider than the row and would otherwise measure Send to zero
+            // width — the button silently disappears. `fill = false` leaves a short Accept its own
+            // width so SpaceBetween still pins the button to the trailing edge.
             Text(
                 text = "Accept: ${request.headers["Accept"] ?: request.type ?: "application/hal+json"}",
                 color = c.text3,
                 fontSize = 11.sp,
                 fontFamily = NaHalMonoFont,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp),
             )
             NaHalButton(text = "Send →", primary = true, onClick = { onSend(request) })
         }

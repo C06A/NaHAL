@@ -66,6 +66,12 @@ data class PendingRequest(
     val cookies: Map<String, String> = emptyMap(),
     val body: String = "",
     val parentId: String? = null,
+    /**
+     * A send typed into the address bar: it starts a new traversal rather than continuing the
+     * selected one, so the node lands at the root with no parent (the graph hangs every root off
+     * its synthetic start node). Without this the node would inherit the cursor's id as its parent.
+     */
+    val rootLevel: Boolean = false,
     // ── non-text bodies ──
     val bodyKind: BodyKind = BodyKind.TEXT,
     val bodyBytes: ByteArray? = null,             // BINARY body
@@ -100,6 +106,23 @@ fun httpStatusText(code: Int): String = when (code) {
     409 -> "Conflict";     422 -> "Unprocessable Entity"; 429 -> "Too Many Requests"
     500 -> "Internal Server Error"; 502 -> "Bad Gateway"; 503 -> "Service Unavailable"
     else -> ""
+}
+
+/** The equivalent `curl` invocation for [node], one flag per continued line. */
+fun buildCurlCommand(node: HistoryNode): String {
+    val parts = mutableListOf("curl -X ${node.method}", "  '${node.url}'")
+    node.requestHeaders.forEach { (k, v) ->
+        if (k.isNotBlank()) parts.add("  -H '$k: $v'")
+    }
+    node.requestCookies.forEach { (k, v) ->
+        if (k.isNotBlank()) parts.add("  -b '$k=$v'")
+    }
+    node.requestBody?.let { body ->
+        if (node.method !in setOf("GET", "HEAD", "OPTIONS")) {
+            parts.add("  --data-raw '$body'")
+        }
+    }
+    return parts.joinToString(" \\\n")
 }
 
 fun shortenUrl(url: String, maxLen: Int = 26): String {

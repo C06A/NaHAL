@@ -39,8 +39,8 @@ val naHalDarkColors = NaHalColors(
     text      = Color(0xFFD6DAE3),
     text2     = Color(0xFF9AA0AD),
     text3     = Color(0xFF636978),
-    accent    = Color(0xFF8B7CFF),
-    accentSoft = Color(0x228B7CFF),
+    accent    = Color(0xFF6DD497),
+    accentSoft = Color(0x226DD497),
     ok        = Color(0xFF6DD497),
     warn      = Color(0xFFE2B057),
     err       = Color(0xFFE26C6C),
@@ -49,9 +49,9 @@ val naHalDarkColors = NaHalColors(
 )
 
 object JsonColors {
-    val key    = Color(0xFF8B7CFF)
-    val string = Color(0xFF8FC8A8)
-    val number = Color(0xFFD99A6C)
+    val key    = Color(0xFF6DD497)
+    val string = Color(0xFFB8D99A)
+    val number = Color(0xFFE2B057)
     val bool   = Color(0xFFC79CE8)
     val null_  = Color(0xFF8B91A0)
 }
@@ -62,6 +62,37 @@ object NaHalDimens {
     val borderWidth: Dp   = 1.dp
     val cornerRadius: Dp  = 5.dp
     val railCorner: Dp    = 3.dp
+
+    // ── Resizable panes ──────────────────────────────────────────────────────
+    /**
+     * Grab width of a pane splitter — the hairline it draws stays [borderWidth], this is only the
+     * pointer hit area around it. Widths below are the floors a drag can shrink a pane to; the
+     * ceilings come from the container, so a pane can never be dragged past its neighbour's floor.
+     */
+    val splitterHit: Dp      = 7.dp
+    val minRailWidth: Dp     = 180.dp
+    val minCenterWidth: Dp   = 320.dp
+    val minCanvasWidth: Dp   = 280.dp
+    val minDrawerWidth: Dp   = 260.dp
+    val minRailSection: Dp   = 90.dp
+    /** Default height of the rail's Traversal section; the Request Log takes the rest. */
+    val traversalHeight: Dp  = 340.dp
+
+    // ── Graph layout (design variant C) ──────────────────────────────────────
+    val drawerWidth: Dp      = 420.dp
+    /**
+     * The graph canvas lays out in character cells, like `grapher.sh`'s SVG renderer: one cell is
+     * one monospace advance of [graphTextSize] wide and one text row ([graphRowH]) high. The canvas
+     * measures the advance from the font itself; [graphCharW] (~0.6em) is only the floor it can't
+     * drop below when the platform reports nothing.
+     */
+    val graphCharW: Dp       = 6.6.dp
+    val graphRowH: Dp        = 14.dp
+    val graphLineHeight      = 14.sp
+    val graphTextSize        = 11.sp
+    val graphPad: Dp         = 24.dp
+    val graphNodeCorner: Dp  = 4.dp
+    val graphGridStep: Dp    = 20.dp
 }
 
 val LocalNaHalColors = staticCompositionLocalOf { naHalDarkColors }

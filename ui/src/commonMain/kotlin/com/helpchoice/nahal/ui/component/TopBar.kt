@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.helpchoice.nahal.ui.AppLayout
 import com.helpchoice.nahal.ui.NaHalDimens
 import com.helpchoice.nahal.ui.NaHalMonoFont
 import com.helpchoice.nahal.ui.LocalNaHalColors
@@ -32,6 +33,8 @@ import com.helpchoice.nahal.ui.state.NavigatorState
 fun NaHalTopBar(
     state: NavigatorState,
     onNavigate: (String) -> Unit,
+    layout: AppLayout,
+    onLayoutChange: (AppLayout) -> Unit,
 ) {
     val c = LocalNaHalColors.current
     var addressText by remember { mutableStateOf("") }
@@ -162,6 +165,63 @@ fun NaHalTopBar(
                 fontFamily = NaHalMonoFont,
             )
         }
+
+        // Node counter
+        val nodes = state.history.size
+        Text(
+            text = "$nodes node${if (nodes == 1) "" else "s"}",
+            color = c.text3,
+            fontSize = 11.sp,
+            fontFamily = NaHalMonoFont,
+        )
+
+        // Layout switch — A (panes) ↔ C (graph)
+        LayoutToggle(layout = layout, onLayoutChange = onLayoutChange)
+    }
+}
+
+/** Segmented two-state control picking which screen layout is on. */
+@Composable
+private fun LayoutToggle(layout: AppLayout, onLayoutChange: (AppLayout) -> Unit) {
+    val c = LocalNaHalColors.current
+    Row(
+        modifier = Modifier
+            .height(24.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.dp, c.border, RoundedCornerShape(4.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LayoutSegment("▤", "panes", layout == AppLayout.Panes) { onLayoutChange(AppLayout.Panes) }
+        Box(modifier = Modifier.fillMaxHeight().width(1.dp).background(c.border))
+        LayoutSegment("◈", "graph", layout == AppLayout.Graph) { onLayoutChange(AppLayout.Graph) }
+    }
+}
+
+@Composable
+private fun LayoutSegment(icon: String, label: String, active: Boolean, onClick: () -> Unit) {
+    val c = LocalNaHalColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxHeight()
+            .background(if (active) c.accentSoft else c.bg3)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(
+            text = icon,
+            color = if (active) c.accent else c.text3,
+            fontSize = 11.sp,
+            fontFamily = NaHalMonoFont,
+        )
+        Text(
+            text = label,
+            color = if (active) c.text else c.text3,
+            fontSize = 11.sp,
+            fontFamily = NaHalMonoFont,
+            fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
+        )
     }
 }
 

@@ -16,8 +16,10 @@ import com.helpchoice.nahal.haldish.uritemplate.UriTemplateVars
 import com.helpchoice.nahal.ui.model.*
 import io.ktor.http.HttpMethod
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import kotlin.time.TimeSource
@@ -43,15 +45,38 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
     private var idCounter = 0
     private fun nextId() = "n${++idCounter}"
 
-    fun fetch(url: String): Job = scope.launch { executeSend(PendingRequest(url = url)) }
+    // An exception that escapes a launched coroutine terminates a Kotlin/Native app (the JVM only
+    // logs it and keeps running). executeSend already handles navigation errors, but this guards
+    // anything thrown outside its try — spec assembly, re-throws — so the native macOS/iOS app
+    // stays alive and just clears the busy state instead of crashing.
+    private val crashGuard = CoroutineExceptionHandler { _, e ->
+        if (e !is CancellationException) {
+            println("NaHAL: unhandled coroutine error: ${e.stackTraceToString()}")
+            loading = false
+            pendingRequest = null
+        }
+    }
+
+    // A SupervisorJob so one failed request cannot cancel the scope (and thus every later request);
+    // parented to the passed scope's Job so it is still torn down when this state leaves composition.
+    private val appScope = CoroutineScope(
+        scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]) + crashGuard,
+    )
+
+    /** Sends [url] as typed in the address bar — a fresh traversal root, not a child of the cursor. */
+    fun fetch(url: String): Job =
+        appScope.launch { executeSend(PendingRequest(url = url, rootLevel = true)) }
 
     fun launchSend(req: PendingRequest): Job {
         pendingRequest = null
-        return scope.launch { executeSend(req) }
+        return appScope.launch { executeSend(req) }
     }
 
     private suspend fun executeSend(req: PendingRequest) {
         loading = true
+        // An address-bar send is a root; everything else hangs off the node it was launched from,
+        // falling back to the cursor when the caller did not name one.
+        val parentId = if (req.rootLevel) null else req.parentId ?: current?.id
         val timer = TimeSource.Monotonic.markNow()
         val accept = req.headers["Accept"] ?: req.type ?: HalHttpClient.HAL_ACCEPT
         val effectiveHeaders = if ("Accept" !in req.headers) {
@@ -105,7 +130,7 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
                             "«multipart: ${req.parts.size} part(s)»"
                         else -> req.body.takeIf { it.isNotBlank() }
                     },
-                    fromRel = req.fromRel, parentId = req.parentId ?: current?.id,
+                    fromRel = req.fromRel, parentId = parentId,
                     response = FetchedResponse(
                         status = raw.statusCode,
                         statusText = httpStatusText(raw.statusCode),
@@ -135,7 +160,7 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
                     id = nextId(), url = attemptedUrl, method = req.method,
                     requestHeaders = effectiveHeaders, requestCookies = req.cookies,
                     requestBody = null, fromRel = req.fromRel,
-                    parentId = req.parentId ?: current?.id,
+                    parentId = parentId,
                     response = FetchedResponse(
                         status = 0, statusText = "Error",
                         headers = emptyMap(), cookies = emptyMap(),
@@ -152,10 +177,20 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
         }
     }
 
-    private fun appendNode(node: HistoryNode) {
-        val trimmed = if (cursor >= 0) history.subList(0, cursor + 1) else emptyList()
-        history = trimmed + node
+    /**
+     * Appends [node] and moves the cursor onto it. The history is **append-only**: it is a
+     * traversal *tree* (`parentId`), not a browser back-stack, so sending from a node the user
+     * picked earlier branches off it instead of truncating everything that came after. Truncating
+     * would drop the siblings the branch was picked from — visible as nodes vanishing from the
+     * graph. Back/forward walk the list in arrival order.
+     */
+    private fun pushNode(node: HistoryNode) {
+        history = history + node
         cursor = history.size - 1
+    }
+
+    private fun appendNode(node: HistoryNode) {
+        pushNode(node)
         requestLog = requestLog + LogEntry(
             id = node.id, url = node.url,
             method = node.method, status = node.response.status,
@@ -180,9 +215,7 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
             ),
             elapsedMs = 0, originStep = PathStep.Embedded(rel, index),
         )
-        val trimmed = if (cursor >= 0) history.subList(0, cursor + 1) else emptyList()
-        history = trimmed + node
-        cursor = history.size - 1
+        pushNode(node)
     }
 
     fun openArrayItem(parentNode: HistoryNode, index: Int) {
@@ -202,9 +235,7 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
             ),
             elapsedMs = 0, originStep = PathStep.Item(index),
         )
-        val trimmed = if (cursor >= 0) history.subList(0, cursor + 1) else emptyList()
-        history = trimmed + node
-        cursor = history.size - 1
+        pushNode(node)
     }
 
     /**
@@ -259,6 +290,25 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
             url = url,
             templated = '{' in url, vars = emptyMap(),
             fromRel = "header:$name", method = "GET", type = null,
+            headers = mapOf("Accept" to HalHttpClient.HAL_ACCEPT),
+            cookies = emptyMap(), body = "",
+            parentId = node?.id ?: current?.id,
+        )
+    }
+
+    /**
+     * Prepares a request to [profile] — the `profile` value of a link on [node]. RFC 6906 makes it
+     * a URI that may or may not dereference; NaHAL follows it like any other URI and lets the
+     * response say. Sent **as-is**: none of the holding link's other fields (its `href`, `type`,
+     * `templated`) describe the profile resource, so this is a bare-URL send with the HAL `Accept`,
+     * and a relative value stays relative for the `preLink` plugins to resolve — the same treatment
+     * a typed address gets.
+     */
+    fun prepareProfileRequest(profile: String, node: HistoryNode?) {
+        pendingRequest = PendingRequest(
+            url = profile,
+            templated = '{' in profile, vars = emptyMap(),
+            fromRel = "profile", method = "GET", type = null,
             headers = mapOf("Accept" to HalHttpClient.HAL_ACCEPT),
             cookies = emptyMap(), body = "",
             parentId = node?.id ?: current?.id,

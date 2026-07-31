@@ -97,6 +97,27 @@ fun StatusPill(code: Int, statusText: String = "") {
     }
 }
 
+/**
+ * Status-class colour for a history node. [method] carries the pseudo-methods the navigator
+ * synthesises for resources opened inside a parent document — those never had a status of their
+ * own, so they get their own hue instead of the 200 the synthetic response reports.
+ */
+@Composable
+fun nodeStatusColor(method: String, status: Int): Color {
+    val c = LocalNaHalColors.current
+    return when (method) {
+        "EMBEDDED" -> c.redir.copy(alpha = 0.45f)
+        "ARRAY"    -> c.accent
+        else -> when (statusClass(status)) {
+            StatusClass.OK    -> c.ok
+            StatusClass.WARN  -> c.warn
+            StatusClass.ERR   -> c.err
+            StatusClass.REDIR -> c.redir
+            StatusClass.INFO  -> c.info
+        }
+    }
+}
+
 // ── Rel chip ─────────────────────────────────────────────────────────────────
 
 fun resolveUri(base: String, href: String): String {

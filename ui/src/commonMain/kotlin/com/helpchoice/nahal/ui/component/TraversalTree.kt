@@ -22,9 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.helpchoice.nahal.ui.NaHalMonoFont
 import com.helpchoice.nahal.ui.LocalNaHalColors
 import com.helpchoice.nahal.ui.model.HistoryNode
-import com.helpchoice.nahal.ui.model.StatusClass
 import com.helpchoice.nahal.ui.model.shortenUrl
-import com.helpchoice.nahal.ui.model.statusClass
 
 private data class TreeEntry(
     val node: HistoryNode,
@@ -80,18 +78,7 @@ private fun TreeRow(
     val c = LocalNaHalColors.current
     val node = entry.node
     val isActive = node.id == activeId
-    val sc = statusClass(node.response.status)
-    val statusColor = when (node.method) {
-        "EMBEDDED" -> c.redir.copy(alpha = 0.45f)
-        "ARRAY"    -> c.accent
-        else       -> when (sc) {
-            StatusClass.OK    -> c.ok
-            StatusClass.WARN  -> c.warn
-            StatusClass.ERR   -> c.err
-            StatusClass.REDIR -> c.redir
-            StatusClass.INFO  -> c.info
-        }
-    }
+    val statusColor = nodeStatusColor(node.method, node.response.status)
 
     val rowBg = if (isActive) c.accentSoft else Color.Transparent
     val rowBorder = if (isActive) c.accent.copy(alpha = 0.35f) else Color.Transparent

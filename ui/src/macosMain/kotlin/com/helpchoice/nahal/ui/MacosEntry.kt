@@ -1,8 +1,12 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlin.experimental.ExperimentalNativeApi::class)
 
 package com.helpchoice.nahal.ui
 
+import kotlin.native.setUnhandledExceptionHook
+
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -28,6 +32,12 @@ import platform.darwin.NSObject
 import platform.posix.*
 
 fun main() {
+    // Kotlin/Native terminates the process on an unhandled exception (unlike the JVM). Coroutine
+    // failures are contained by NavigatorState's supervisor + handler; this logs anything else
+    // (e.g. a main-thread/Compose exception) so a crash is at least diagnosable rather than silent.
+    setUnhandledExceptionHook { throwable ->
+        println("NaHAL: unhandled exception: ${throwable.stackTraceToString()}")
+    }
     val app = NSApplication.sharedApplication()
     app.setActivationPolicy(NSApplicationActivationPolicy.NSApplicationActivationPolicyRegular)
 
@@ -38,6 +48,11 @@ fun main() {
                 size = DpSize(1280.dp, 820.dp),
             ) {
                 CompositionLocalProvider(
+                    // Replace Compose's macOS clipboard: its default aborts the process on a
+                    // failed copy (see MacosClipboard.kt).
+                    LocalClipboard provides NahalMacosClipboard,
+                    @Suppress("DEPRECATION")
+                    LocalClipboardManager provides NahalMacosClipboardManager,
                     LocalFilePicker provides { callback -> pickFile(callback) },
                     LocalExternalOpener provides ExternalOpener(
                         appNameFor = ::defaultAppName,

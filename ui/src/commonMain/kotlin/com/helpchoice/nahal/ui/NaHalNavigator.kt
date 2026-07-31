@@ -3,6 +3,7 @@ package com.helpchoice.nahal.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,8 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.helpchoice.nahal.haldish.model.HalDocument
@@ -30,6 +33,9 @@ import com.helpchoice.nahal.ui.state.rememberNavigatorState
 private enum class ViewKind  { Response, Request }
 private enum class ViewMode  { Pretty,   Raw     }
 
+/** The two screen layouts of the design: A (rail + detail panes) and C (graph + drawer). */
+enum class AppLayout { Panes, Graph }
+
 // ── Root composable ───────────────────────────────────────────────────────────
 
 @Composable
@@ -45,10 +51,17 @@ private fun NaHalNavigatorContent(state: NavigatorState, startUrl: String) {
     val c = LocalNaHalColors.current
 
     var selectedId by remember { mutableStateOf<String?>(null) }
+    var layout by remember { mutableStateOf(AppLayout.Panes) }
     var viewKind by remember { mutableStateOf(ViewKind.Response) }
     var viewMode by remember { mutableStateOf(ViewMode.Pretty) }
     var openResp by remember { mutableStateOf(setOf("links", "props", "body", "items")) }
     var openReq  by remember { mutableStateOf(setOf("headers")) }
+
+    // Pane sizes — dragged by the splitters, clamped against the container on every layout so a
+    // shrinking window can't push a pane past its neighbour's minimum.
+    var railWidth  by remember { mutableStateOf(NaHalDimens.railWidth) }
+    var traversalH by remember { mutableStateOf(NaHalDimens.traversalHeight) }
+    var drawerW    by remember { mutableStateOf(NaHalDimens.drawerWidth) }
 
     // Boot with start URL
     LaunchedEffect(startUrl) {
@@ -70,148 +83,366 @@ private fun NaHalNavigatorContent(state: NavigatorState, startUrl: String) {
         NaHalTopBar(
             state = state,
             onNavigate = { url -> state.fetch(url) },
+            layout = layout,
+            onLayoutChange = { layout = it },
         )
 
-        // Two-pane
-        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        // Graph + drawer (design variant C)
+        if (layout == AppLayout.Graph) {
+            GraphLayout(
+                state = state,
+                selectedNode = selectedNode,
+                onPick = { id ->
+                    selectedId = id
+                    state.jumpTo(id)
+                    viewKind = ViewKind.Response
+                },
+                drawerWidth = drawerW,
+                onDrawerWidthChange = { drawerW = it },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+        }
 
-            // ─ Left rail ─────────────────────────────────────────────────────
-            Column(
+        // Two-pane
+        if (layout == AppLayout.Panes) BoxWithConstraints(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) {
+            val railMax = (maxWidth - NaHalDimens.minCenterWidth - NaHalDimens.splitterHit)
+                .coerceAtLeast(NaHalDimens.minRailWidth)
+            val rail = railWidth.coerceIn(NaHalDimens.minRailWidth, railMax)
+
+            Row(modifier = Modifier.fillMaxSize()) {
+
+                // ─ Left rail (only once there is a traversal or a log to show) ───
+                if (state.railHasContent) {
+                    TraversalRail(
+                        state = state,
+                        selectedId = selectedId,
+                        sectionHeight = traversalH,
+                        onSectionHeightChange = { traversalH = it },
+                        onPickNode = { id -> selectedId = id; viewKind = ViewKind.Response },
+                        onPickLog  = { id -> selectedId = id; viewKind = ViewKind.Request },
+                        modifier = Modifier.width(rail).fillMaxHeight(),
+                    )
+
+                    // ─ Splitter ──────────────────────────────────────────────────
+                    VerticalSplitter(
+                        onDelta = { d ->
+                            railWidth = (rail + d).coerceIn(NaHalDimens.minRailWidth, railMax)
+                        },
+                        onReset = { railWidth = NaHalDimens.railWidth },
+                    )
+                }
+
+                // ─ Center ────────────────────────────────────────────────────────
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    when {
+                        // Template form or request builder when pending
+                        state.pendingRequest != null -> {
+                            val req = state.pendingRequest!!
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                            ) {
+                                if (req.templated) {
+                                    TemplateForm(
+                                        request = req,
+                                        onVarsChange = { vars ->
+                                            state.pendingRequest = req.copy(vars = vars)
+                                        },
+                                        onSubmit = { expanded ->
+                                            state.pendingRequest = req.copy(url = expanded, templated = false)
+                                        },
+                                        onCancel = { state.pendingRequest = null },
+                                    )
+                                } else {
+                                    RequestBuilder(
+                                        request = req,
+                                        onChange = { updated -> state.pendingRequest = updated },
+                                        onSend = { r -> state.launchSend(r) },
+                                        onCancel = { state.pendingRequest = null },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Loading state (first load)
+                        selectedNode == null && state.loading ->
+                            CenterMessage("Fetching entry point…")
+
+                        // Empty state
+                        selectedNode == null ->
+                            CenterMessage("Enter a URL in the address bar to start.")
+
+                        // Main content
+                        else -> CenterPanel(
+                            state = state,
+                            node = selectedNode,
+                            viewKind = viewKind,
+                            viewMode = viewMode,
+                            openResp = openResp,
+                            openReq = openReq,
+                            onViewKindToggle = {
+                                viewKind = if (viewKind == ViewKind.Request) ViewKind.Response else ViewKind.Request
+                            },
+                            onViewModeToggle = {
+                                viewMode = if (viewMode == ViewMode.Pretty) ViewMode.Raw else ViewMode.Pretty
+                            },
+                            onToggleResp = { k -> openResp = if (k in openResp) openResp - k else openResp + k },
+                            onToggleReq  = { k -> openReq  = if (k in openReq)  openReq  - k else openReq  + k },
+                            onSelectNode = { id -> selectedId = id },
+                            onFollow = { rel, index, link ->
+                                state.prepareRequest(
+                                    link = link,
+                                    rel = rel,
+                                    index = index,
+                                    node = selectedNode,
+                                )
+                            },
+                            onFollowProfile = { profile ->
+                                state.prepareProfileRequest(profile, selectedNode)
+                            },
+                            onFollowProperty = { terminal, href ->
+                                state.preparePropertyRequest(terminal, href, selectedNode)
+                            },
+                            onFollowHeader = { name, url ->
+                                state.prepareHeaderRequest(name, url, selectedNode)
+                            },
+                            onOpenEmbedded = { rel, idx ->
+                                state.openEmbedded(selectedNode, rel, idx)
+                            },
+                            onOpenArrayItem = { idx ->
+                                state.openArrayItem(selectedNode, idx)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Left rail (design variant A) ──────────────────────────────────────────────
+
+/**
+ * Traversal tree over the request log, each scrolling on its own so a deep tree can't push the log
+ * out of reach. [sectionHeight] is the traversal section's height; the log takes whatever is left.
+ * The value is clamped here against the rail's real height, so the caller can hand over a stale
+ * size after a window resize without the sections collapsing.
+ *
+ * An empty section is left out entirely — with only one section there is nothing to split, so the
+ * survivor takes the whole rail and the splitter goes away with it. The caller drops the rail
+ * altogether once both are empty ([railHasContent]).
+ */
+@Composable
+private fun TraversalRail(
+    state: NavigatorState,
+    selectedId: String?,
+    sectionHeight: Dp,
+    onSectionHeightChange: (Dp) -> Unit,
+    onPickNode: (String) -> Unit,
+    onPickLog: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = LocalNaHalColors.current
+    val showTree = state.history.isNotEmpty()
+    val showLog  = state.requestLog.isNotEmpty()
+
+    BoxWithConstraints(modifier = modifier.background(c.bg2)) {
+        val topMax = (maxHeight - NaHalDimens.minRailSection - NaHalDimens.splitterHit)
+            .coerceAtLeast(NaHalDimens.minRailSection)
+        val topH = sectionHeight.coerceIn(NaHalDimens.minRailSection, topMax)
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ── Traversal section ────────────────────────────────────────────
+            if (showTree) Column(
                 modifier = Modifier
-                    .width(NaHalDimens.railWidth)
-                    .fillMaxHeight()
-                    .background(c.bg2)
+                    .fillMaxWidth()
+                    // Only a section with a neighbour below it is sized by the splitter.
+                    .then(if (showLog) Modifier.height(topH) else Modifier.weight(1f))
                     .verticalScroll(rememberScrollState()),
             ) {
-                // Traversal header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                        .padding(top = 10.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SectionTitle("Traversal")
-                    CountBadge(state.history.size)
-                }
+                RailSectionHeader("Traversal", state.history.size, topPad = 10.dp)
 
                 TraversalTree(
                     history = state.history,
                     activeId = selectedId,
-                    onPick = { id -> selectedId = id; viewKind = ViewKind.Response },
+                    onPick = onPickNode,
                 )
 
                 Spacer(Modifier.height(10.dp))
-                NaHalDivider(modifier = Modifier.fillMaxWidth().height(1.dp))
+            }
 
-                // Request log header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                        .padding(top = 18.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SectionTitle("Request Log")
-                    CountBadge(state.requestLog.size)
-                }
+            if (showTree && showLog) HorizontalSplitter(
+                onDelta = { d ->
+                    onSectionHeightChange((topH + d).coerceIn(NaHalDimens.minRailSection, topMax))
+                },
+                onReset = { onSectionHeightChange(NaHalDimens.traversalHeight) },
+            )
+
+            // ── Request log section ──────────────────────────────────────────
+            if (showLog) Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                RailSectionHeader("Request Log", state.requestLog.size, topPad = 12.dp)
 
                 RequestLog(
                     log = state.requestLog,
                     activeId = selectedId,
-                    onPick = { id -> selectedId = id; viewKind = ViewKind.Request },
+                    onPick = onPickLog,
                 )
 
                 Spacer(Modifier.height(16.dp))
             }
+        }
+    }
+}
 
-            // ─ Border ────────────────────────────────────────────────────────
-            NaHalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
+/** Whether the left rail has anything to show — otherwise the center pane takes the window. */
+private val NavigatorState.railHasContent: Boolean
+    get() = history.isNotEmpty() || requestLog.isNotEmpty()
 
-            // ─ Center ────────────────────────────────────────────────────────
+@Composable
+private fun RailSectionHeader(title: String, count: Int, topPad: Dp) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp)
+            .padding(top = topPad, bottom = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SectionTitle(title)
+        CountBadge(count)
+    }
+}
+
+// ── Graph layout (design variant C) ───────────────────────────────────────────
+
+/**
+ * Graph canvas plus the resizable detail drawer. Selection moves the navigator cursor, so a request
+ * sent from the drawer hangs off the selected node as a new branch; the nodes already drawn — the
+ * selected node's siblings included — stay on the canvas.
+ */
+@Composable
+private fun GraphLayout(
+    state: NavigatorState,
+    selectedNode: HistoryNode?,
+    onPick: (String) -> Unit,
+    drawerWidth: Dp,
+    onDrawerWidthChange: (Dp) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier) {
+        val drawerMax = (maxWidth - NaHalDimens.minCanvasWidth - NaHalDimens.splitterHit)
+            .coerceAtLeast(NaHalDimens.minDrawerWidth)
+        val drawer = drawerWidth.coerceIn(NaHalDimens.minDrawerWidth, drawerMax)
+
+        Row(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                when {
-                    // Template form or request builder when pending
-                    state.pendingRequest != null -> {
-                        val req = state.pendingRequest!!
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 14.dp, vertical = 14.dp),
-                        ) {
-                            if (req.templated) {
-                                TemplateForm(
-                                    request = req,
-                                    onVarsChange = { vars ->
-                                        state.pendingRequest = req.copy(vars = vars)
-                                    },
-                                    onSubmit = { expanded ->
-                                        state.pendingRequest = req.copy(url = expanded, templated = false)
-                                    },
-                                    onCancel = { state.pendingRequest = null },
-                                )
-                            } else {
-                                RequestBuilder(
-                                    request = req,
-                                    onChange = { updated -> state.pendingRequest = updated },
-                                    onSend = { r -> state.launchSend(r) },
-                                    onCancel = { state.pendingRequest = null },
-                                )
-                            }
+                GraphCanvas(
+                    history = state.history,
+                    selectedId = selectedNode?.id,
+                    loading = state.loading,
+                    onPick = onPick,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                state.pendingRequest?.let { req ->
+                    RequestModal(wide = !req.templated) {
+                        if (req.templated) {
+                            TemplateForm(
+                                request = req,
+                                onVarsChange = { vars -> state.pendingRequest = req.copy(vars = vars) },
+                                onSubmit = { expanded ->
+                                    state.pendingRequest = req.copy(url = expanded, templated = false)
+                                },
+                                onCancel = { state.pendingRequest = null },
+                            )
+                        } else {
+                            RequestBuilder(
+                                request = req,
+                                onChange = { updated -> state.pendingRequest = updated },
+                                onSend = { r -> state.launchSend(r) },
+                                onCancel = { state.pendingRequest = null },
+                            )
                         }
                     }
-
-                    // Loading state (first load)
-                    selectedNode == null && state.loading ->
-                        CenterMessage("Fetching entry point…")
-
-                    // Empty state
-                    selectedNode == null ->
-                        CenterMessage("Enter a URL in the address bar to start.")
-
-                    // Main content
-                    else -> CenterPanel(
-                        state = state,
-                        node = selectedNode,
-                        viewKind = viewKind,
-                        viewMode = viewMode,
-                        openResp = openResp,
-                        openReq = openReq,
-                        onViewKindToggle = {
-                            viewKind = if (viewKind == ViewKind.Request) ViewKind.Response else ViewKind.Request
-                        },
-                        onViewModeToggle = {
-                            viewMode = if (viewMode == ViewMode.Pretty) ViewMode.Raw else ViewMode.Pretty
-                        },
-                        onToggleResp = { k -> openResp = if (k in openResp) openResp - k else openResp + k },
-                        onToggleReq  = { k -> openReq  = if (k in openReq)  openReq  - k else openReq  + k },
-                        onSelectNode = { id -> selectedId = id },
-                        onFollow = { rel, index, link ->
-                            state.prepareRequest(
-                                link = link,
-                                rel = rel,
-                                index = index,
-                                node = selectedNode,
-                            )
-                        },
-                        onFollowProperty = { terminal, href ->
-                            state.preparePropertyRequest(terminal, href, selectedNode)
-                        },
-                        onFollowHeader = { name, url ->
-                            state.prepareHeaderRequest(name, url, selectedNode)
-                        },
-                        onOpenEmbedded = { rel, idx ->
-                            state.openEmbedded(selectedNode, rel, idx)
-                        },
-                        onOpenArrayItem = { idx ->
-                            state.openArrayItem(selectedNode, idx)
-                        },
-                    )
                 }
             }
+
+            // With nothing selected there is nothing to detail, so the canvas — which carries the
+            // "enter a URL" message while the history is empty — takes the whole window.
+            if (selectedNode != null) {
+                VerticalSplitter(
+                    // Drag left widens the drawer, so the delta is subtracted.
+                    onDelta = { d ->
+                        onDrawerWidthChange(
+                            (drawer - d).coerceIn(NaHalDimens.minDrawerWidth, drawerMax)
+                        )
+                    },
+                    onReset = { onDrawerWidthChange(NaHalDimens.drawerWidth) },
+                )
+
+                DetailDrawer(
+                    node = selectedNode,
+                    position = state.history.indexOfFirst { it.id == selectedNode.id } + 1,
+                    total = state.history.size,
+                    onFollow = { rel, index, link ->
+                        state.prepareRequest(link = link, rel = rel, index = index, node = selectedNode)
+                    },
+                    onFollowProfile = { profile -> state.prepareProfileRequest(profile, selectedNode) },
+                    onFollowProperty = { terminal, href ->
+                        state.preparePropertyRequest(terminal, href, selectedNode)
+                    },
+                    onFollowHeader = { name, url -> state.prepareHeaderRequest(name, url, selectedNode) },
+                    onOpenEmbedded = { rel, idx -> state.openEmbedded(selectedNode, rel, idx) },
+                    onOpenArrayItem = { idx -> state.openArrayItem(selectedNode, idx) },
+                    modifier = Modifier.width(drawer).fillMaxHeight(),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Scrim + centred card the request forms sit in while the graph is the main surface. Dismissal is
+ * the form's own cancel button — the design has no click-outside-to-close.
+ */
+@Composable
+private fun RequestModal(
+    wide: Boolean,
+    content: @Composable () -> Unit,
+) {
+    val c = LocalNaHalColors.current
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            // Swallow taps so nodes behind the scrim stay unreachable; the design dismisses only
+            // through cancel / ×.
+            .clickable(interactionSource = interaction, indication = null) {},
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(24.dp)
+                .widthIn(max = if (wide) 640.dp else 560.dp)
+                .fillMaxWidth()
+                .heightIn(max = 640.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(c.bg2)
+                .border(1.dp, c.border2, RoundedCornerShape(6.dp))
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+        ) {
+            content()
         }
     }
 }
@@ -232,6 +463,7 @@ private fun CenterPanel(
     onToggleReq: (String) -> Unit,
     onSelectNode: (String) -> Unit,
     onFollow: (rel: String, index: Int, link: HalLink) -> Unit,
+    onFollowProfile: (profile: String) -> Unit,
     onFollowProperty: (terminal: List<PathStep.Property>, href: String) -> Unit,
     onFollowHeader: (name: String, url: String) -> Unit,
     onOpenEmbedded: (rel: String, idx: Int) -> Unit,
@@ -313,6 +545,7 @@ private fun CenterPanel(
                             node = node,
                             doc = doc,
                             onFollow = onFollow,
+                            onFollowProfile = onFollowProfile,
                             onFollowProperty = onFollowProperty,
                             onFollowHeader = onFollowHeader,
                             onOpenEmbedded = onOpenEmbedded,
@@ -357,6 +590,7 @@ private fun buildResponseSections(
     node: HistoryNode,
     doc: HalDocument?,
     onFollow: (String, Int, HalLink) -> Unit,
+    onFollowProfile: (String) -> Unit,
     onFollowProperty: (List<PathStep.Property>, String) -> Unit,
     onFollowHeader: (String, String) -> Unit,
     onOpenEmbedded: (String, Int) -> Unit,
@@ -394,7 +628,9 @@ private fun buildResponseSections(
             key = "links",
             title = "Links",
             count = linkCount,
-            content = { LinksPanel(document = doc, onFollow = onFollow) },
+            content = {
+                LinksPanel(document = doc, onFollow = onFollow, onFollowProfile = onFollowProfile)
+            },
         ))
         add(AccordionSection(
             key = "embedded",
@@ -596,22 +832,6 @@ private fun CurlPanel(node: HistoryNode) {
                 .padding(16.dp),
         )
     }
-}
-
-private fun buildCurlCommand(node: HistoryNode): String {
-    val parts = mutableListOf("curl -X ${node.method}", "  '${node.url}'")
-    node.requestHeaders.forEach { (k, v) ->
-        if (k.isNotBlank()) parts.add("  -H '$k: $v'")
-    }
-    node.requestCookies.forEach { (k, v) ->
-        if (k.isNotBlank()) parts.add("  -b '$k=$v'")
-    }
-    node.requestBody?.let { body ->
-        if (node.method !in setOf("GET", "HEAD", "OPTIONS")) {
-            parts.add("  --data-raw '$body'")
-        }
-    }
-    return parts.joinToString(" \\\n")
 }
 
 // ── Request log ───────────────────────────────────────────────────────────────
