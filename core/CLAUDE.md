@@ -1,6 +1,7 @@
 # `:core` — navigation layer
 
-Higher-level navigation layer built on top of `:haldish`. Provides `HalNavigator`,
+Higher-level navigation layer built on top of haldish (`libs.haldish`, developed in the separate
+`../HALDiSh_KMP` repository — it is no longer a module of this build). Provides `HalNavigator`,
 `LinkSelector`, and platform facades. Library module — no application entry point.
 
 ## Build & Test Commands

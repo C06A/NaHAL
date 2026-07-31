@@ -7,6 +7,15 @@
 *Haldish* is a https://stateless.group/hal_specification.html[HAL (Hypertext Application Language)] client library for https://kotlinlang.org/docs/multiplatform.html[Kotlin Multiplatform].
 It handles HAL document parsing, RFC 6570 URI template expansion, and HTTP communication on every supported platform.
 
+[NOTE]
+====
+The Haldish library itself now lives in its own repository, `../HALDiSh_KMP`, and is consumed
+here as `com.helpchoice.nahal:haldish`. Every `./gradlew` command in the library sections below
+is run from that project (where the library is the root project, so the tasks carry no module
+prefix). This repository builds the NaHAL navigator on top of it: `:core`, `:ui`, `:plugins:*`,
+`:testkit`.
+====
+
 == Supported Platforms
 
 |===
@@ -190,14 +199,14 @@ Build the JS library:
 
 [source,bash]
 ----
-./gradlew :haldish:jsNodeProductionLibrary
-# output: haldish/build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs
+./gradlew jsNodeProductionLibrary
+# output: build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs
 ----
 
 [source,javascript]
 ----
 import { JsHalClient, JsHeaders, JsMultipartPart } from
-    './haldish/build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs';
+    './build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs';
 
 const client = new JsHalClient();
 
@@ -239,8 +248,8 @@ Build the Wasm library:
 
 [source,bash]
 ----
-./gradlew :haldish:wasmJsBrowserProductionLibrary
-# output: haldish/build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs
+./gradlew wasmJsBrowserProductionLibrary
+# output: build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs
 ----
 
 The Wasm module must be served over HTTP (not `file://`) because browsers block Wasm loading from local files:
@@ -265,7 +274,7 @@ import {
   wasmHeaderSet, wasmHeadersClear,
   wasmVarsSet, wasmVarsAdd, wasmExpandVars,
   wasmClose,
-} from './haldish/build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs';
+} from './build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs';
 
 // GET — read result after awaiting
 await wasmGet('https://api.example.com/');
@@ -303,17 +312,17 @@ Build the shared library for your target:
 [source,bash]
 ----
 # macOS
-./gradlew :haldish:linkReleaseSharedMacosArm64
+./gradlew linkReleaseSharedMacosArm64
 # Linux
-./gradlew :haldish:linkReleaseSharedLinuxX64
+./gradlew linkReleaseSharedLinuxX64
 # Windows
-./gradlew :haldish:linkReleaseSharedMingwX64
+./gradlew linkReleaseSharedMingwX64
 ----
 
 Output (e.g., macOS arm64):
 
 ----
-haldish/build/bin/macosArm64/releaseShared/
+build/bin/macosArm64/releaseShared/
   libhaldish_api.h   ← generated C header
   libhaldish.dylib   ← shared library
 ----
@@ -322,7 +331,7 @@ Compile and link (macOS example):
 
 [source,bash]
 ----
-OUTDIR=haldish/build/bin/macosArm64/releaseShared
+OUTDIR=build/bin/macosArm64/releaseShared
 g++ -std=c++17 -o my_app my_app.cpp \
     -I$OUTDIR -L$OUTDIR -lhaldish -Wl,-rpath,$OUTDIR
 ----
@@ -397,10 +406,10 @@ Explicit content types take precedence: `application/hal+json`, `application/jso
 ./gradlew build
 
 # JVM tests only
-./gradlew :haldish:jvmTest
+./gradlew jvmTest
 
 # Coverage report (printed to the console, JVM only)
-./gradlew :haldish:coverageReport
+./gradlew coverageReport
 ----
 
 == Related Tools

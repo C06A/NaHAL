@@ -14,7 +14,7 @@ kotlin {
 
 dependencies {
     // haldish is the wrapped client; re-exported so callers see HalLink/HalHttpResponse etc.
-    api(project(":haldish"))
+    api(libs.haldish)
     // Reuse the CURIE link-expansion logic and the curies documentation resolver.
     implementation(project(":plugins:curie"))
     implementation(project(":core"))
@@ -84,7 +84,7 @@ mavenPublishing {
         name        = "HALDiSh TestKit"
         description = "Readable HAL test wrapper over HALDiSh — express tests as a sequence of " +
             "HTTP calls, with sessions, CURIE, and body coercion (Kotlin core)"
-        url         = "https://github.com/nahal/nahal"
+        url         = "https://github.com/C06A/NaHAL"
         licenses {
             license {
                 name = "Apache-2.0"
@@ -93,10 +93,10 @@ mavenPublishing {
         }
         developers {
             developer {
-                id   = "nahal"
-                name = "Nahal"
+                id   = "C06A"
+                name = "CAB"
             }
         }
-        scm { url = "https://github.com/nahal/nahal" }
+        scm { url = "https://github.com/C06A/NaHAL" }
     }
 }

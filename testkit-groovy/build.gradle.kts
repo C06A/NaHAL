@@ -73,7 +73,7 @@ mavenPublishing {
         name        = "HALDiSh TestKit — Groovy DSL"
         description = "Groovy/Spock DSL facade over HALDiSh TestKit — dynamic property, embedded, " +
             "and method access for readable HAL tests"
-        url         = "https://github.com/nahal/nahal"
+        url         = "https://github.com/C06A/NaHAL"
         licenses {
             license {
                 name = "Apache-2.0"
@@ -82,10 +82,10 @@ mavenPublishing {
         }
         developers {
             developer {
-                id   = "nahal"
-                name = "Nahal"
+                id   = "C06A"
+                name = "CAB"
             }
         }
-        scm { url = "https://github.com/nahal/nahal" }
+        scm { url = "https://github.com/C06A/NaHAL" }
     }
 }

@@ -141,9 +141,9 @@ mavenPublishing {
     )
 
     pom {
-        name        = "Nahal UI"
-        description = "Kotlin Multiplatform Compose UI components for the Nahal client"
-        url         = "https://github.com/nahal/nahal"
+        name        = "NaHAL UI"
+        description = "Kotlin Multiplatform Compose UI components for the NaHAL client"
+        url         = "https://github.com/C06A/NaHAL"
         licenses {
             license {
                 name = "Apache-2.0"
@@ -152,12 +152,12 @@ mavenPublishing {
         }
         developers {
             developer {
-                id   = "nahal"
-                name = "Nahal"
+                id   = "C06A"
+                name = "CAB"
             }
         }
         scm {
-            url = "https://github.com/nahal/nahal"
+            url = "https://github.com/C06A/NaHAL"
         }
     }
 }

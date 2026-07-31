@@ -40,7 +40,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(project(":haldish"))
+            api(libs.haldish)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -122,7 +122,7 @@ mavenPublishing {
         name        = "HALDiSh Plugin — Base URL Rewriter (per-platform)"
         description = "HALDiSh plugin that rewrites the scheme and host of every outgoing request. " +
                       "Per-platform authoring example — each platform source set is self-contained."
-        url         = "https://github.com/nahal/nahal"
+        url         = "https://github.com/C06A/NaHAL"
         licenses {
             license {
                 name = "Apache-2.0"
@@ -131,10 +131,10 @@ mavenPublishing {
         }
         developers {
             developer {
-                id   = "nahal"
-                name = "Nahal"
+                id   = "C06A"
+                name = "CAB"
             }
         }
-        scm { url = "https://github.com/nahal/nahal" }
+        scm { url = "https://github.com/C06A/NaHAL" }
     }
 }

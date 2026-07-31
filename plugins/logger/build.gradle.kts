@@ -37,7 +37,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(project(":haldish"))
+            api(libs.haldish)
             // JSON pretty-printing (kotlinx.serialization.json is impl in :haldish, re-declare here)
             implementation(libs.kotlinx.serialization.json)
         }
@@ -131,7 +131,7 @@ mavenPublishing {
         name        = "HALDiSh Plugin — Logger"
         description = "HALDiSh plugin that saves every HTTP exchange as a set of files: " +
                       "curl command, final URL, status, headers, raw body, and pretty-printed body."
-        url         = "https://github.com/nahal/nahal"
+        url         = "https://github.com/C06A/NaHAL"
         licenses {
             license {
                 name = "Apache-2.0"
@@ -140,10 +140,10 @@ mavenPublishing {
         }
         developers {
             developer {
-                id   = "nahal"
-                name = "Nahal"
+                id   = "C06A"
+                name = "CAB"
             }
         }
-        scm { url = "https://github.com/nahal/nahal" }
+        scm { url = "https://github.com/C06A/NaHAL" }
     }
 }

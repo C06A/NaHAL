@@ -18,9 +18,10 @@ allprojects {
 //
 // Groups produced (each a single .zip + a matching .sha256):
 //   • nahal-native-<platform>-<version>.zip  — shared lib + C header, per platform
-//         (haldish + nahal-core together; consumer grabs only their platform)
-//   • haldish-js-<version>.zip               — JS/Node production library
 //   • nahal-ui-web-<version>.zip             — browser UI bundle (js/ + wasm/)
+//
+// haldish assets (its native libs and the JS/Node library) are released from its own
+// repository, ../HALDiSh_KMP — this build only consumes the published artifact.
 //
 // Maven Central already serves JVM/JS/native klibs, sources, and javadoc for
 // Gradle/Maven users — those are intentionally NOT duplicated here.
@@ -40,11 +41,8 @@ val nativeZipTasks = nativePlatforms.map { (target, slug) ->
     val capitalized = target.replaceFirstChar { it.uppercase() } // linkReleaseShared<Target>
     tasks.register<Zip>("zipNative${capitalized}") {
         group       = "release"
-        description = "Stages haldish + nahal-core shared libraries and C headers for $slug."
-        dependsOn(
-            ":haldish:linkReleaseShared${capitalized}",
-            ":core:linkReleaseShared${capitalized}",
-        )
+        description = "Stages the nahal-core shared library and C header for $slug."
+        dependsOn(":core:linkReleaseShared${capitalized}")
         archiveFileName.set("nahal-native-$slug-$releaseVersion.zip")
         destinationDirectory.set(releaseDir)
 
@@ -52,18 +50,8 @@ val nativeZipTasks = nativePlatforms.map { (target, slug) ->
             include("*.so", "*.dylib", "*.dll", "*.h")   // libs + headers only
             exclude("**/*.dSYM/**", "*.def")             // drop debug bundles + module defs
         }
-        from(project(":haldish").layout.buildDirectory.dir("bin/$target/releaseShared"), patterns)
         from(project(":core").layout.buildDirectory.dir("bin/$target/releaseShared"), patterns)
     }
-}
-
-val zipJsLibrary = tasks.register<Zip>("zipJsLibrary") {
-    group       = "release"
-    description = "Stages the haldish JS/Node production library."
-    dependsOn(":haldish:jsProductionLibraryCompileSync")
-    archiveFileName.set("haldish-js-$releaseVersion.zip")
-    destinationDirectory.set(releaseDir)
-    from(project(":haldish").layout.buildDirectory.dir("compileSync/js/main/productionLibrary"))
 }
 
 val zipWebUi = tasks.register<Zip>("zipWebUi") {
@@ -96,7 +84,7 @@ val stageDesktopInstaller = tasks.register<Copy>("stageDesktopInstaller") {
 tasks.register("stageReleaseArtifacts") {
     group       = "release"
     description = "Builds and organizes all GitHub release assets under build/release (no upload)."
-    dependsOn(nativeZipTasks, zipJsLibrary, zipWebUi, stageDesktopInstaller)
+    dependsOn(nativeZipTasks, zipWebUi, stageDesktopInstaller)
 
     val outDir = releaseDir
     doLast {

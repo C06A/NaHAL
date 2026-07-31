@@ -4,13 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Kotlin Multiplatform project. Dependency direction: `:ui` → `:core` → `:haldish` (each module
+Kotlin Multiplatform project. Dependency direction: `:ui` → `:core` → `haldish` (each module
 exposes its dependency via `api()`).
+
+**haldish is no longer a module of this build.** It lives in its own repository,
+`../HALDiSh_KMP`, and is consumed here as the published artifact
+`com.helpchoice.nahal:haldish` (version catalog entry `libs.haldish`). Change the HAL client
+there, not here. Because Maven Central currently serves only 1.0.1, `settings.gradle.kts` adds
+`mavenLocal()` — run `./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false` in
+`../HALDiSh_KMP` to make the current 2.0.0 resolvable.
 
 | Module | Role | Per-module docs |
 |---|---|---|
-| `:haldish` | Published library: HAL (Hypertext Application Language) client for JSON/XML/YAML formats. Targets JVM, JS (IR), WasmJS, Linux (x64/arm64), macOS (x64/arm64), iOS, Windows. | [haldish/CLAUDE.md](../haldish/CLAUDE.md) |
-| `:core` | Navigation layer on `:haldish` — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, platform facades. No app entry point. | [core/CLAUDE.md](../core/CLAUDE.md) |
+| `:core` | Navigation layer on haldish — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, platform facades. No app entry point. | [core/CLAUDE.md](../core/CLAUDE.md) |
 | `:ui` | Compose Multiplatform desktop/browser/mobile GUI HAL navigator. | [ui/CLAUDE.md](../ui/CLAUDE.md) |
 | `:plugins:*` | Independent example-plugin submodules (`api-key`, `chain`, `curie`, `logger`, `bearer-token`, `base-url-rewriter`). | [plugins/CLAUDE.md](../plugins/CLAUDE.md) |
 
@@ -27,17 +33,17 @@ exposes its dependency via `api()`).
 
 Per-module build/test/run commands live in each module's `CLAUDE.md` (linked above). Quick index:
 
-- `:haldish` — `./gradlew :haldish:test`, per-platform `:haldish:jvmTest` / `:jsNodeTest` / `:jsTest` / `:wasmJsTest`, single test via `--tests`, `:coverageReport`, native/JS library links.
 - `:core` — `./gradlew :core:jvmTest` plus custom non-JVM verification tasks (`runCoreJsTest`, `runCoreNativeTest`).
 - `:ui` — `./gradlew :ui:jvmRun` (desktop), `:jsBrowserProductionWebpack` / `:wasmJsBrowserProductionWebpack` (web).
 - `:plugins:*` — `./gradlew :plugins:<name>:build` / `:jvmTest`.
 
 ## Publishing
 
-All three primary modules publish to Maven Central via `com.vanniktech.maven.publish`. Coordinates:
-- `com.helpchoice.nahal:haldish`
+Both primary modules publish to Maven Central via `com.vanniktech.maven.publish`. Coordinates:
 - `com.helpchoice.nahal:nahal-core`
 - `com.helpchoice.nahal:nahal-ui`
+
+(`com.helpchoice.nahal:haldish` is published from `../HALDiSh_KMP`.)
 
 Plugin modules publish as `haldish-plugin-<name>` (see [plugins/CLAUDE.md](../plugins/CLAUDE.md)).
 
