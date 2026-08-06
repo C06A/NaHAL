@@ -1,9 +1,0 @@
-# To activate ApiKeyPlugin via ServiceLoader, replace this file with one naming a concrete
-# subclass that supplies the API key, e.g.:
-#   com.example.MyApiKeyPlugin
-#
-# Example subclass:
-#   class MyApiKeyPlugin : ApiKeyPlugin(apiKey = System.getenv("HALDISH_PLUGIN_API_KEY") ?: "")
-#
-# This file is intentionally empty so the module compiles without auto-registering an
-# unconfigured (empty) API key.
