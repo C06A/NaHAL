@@ -10,18 +10,16 @@ import com.helpchoice.nahal.ui.component.LocalExternalOpener
 import com.helpchoice.nahal.ui.component.LocalFilePicker
 import com.helpchoice.nahal.ui.component.PickedFile
 import com.helpchoice.nahal.ui.component.guessContentType
-import com.helpchoice.nahal.core.plugin.chainedPlugin
 import com.helpchoice.nahal.haldish.plugin.HaldishPlugin
 import java.awt.Desktop
 import java.io.File
 import java.net.URLClassLoader
-import java.util.ServiceLoader
 import java.util.concurrent.TimeUnit
 import javax.swing.JFileChooser
 
 fun main() {
     System.setProperty("apple.awt.application.name", "NaHAL")
-    val dropInPlugin = loadDropInPlugins()
+    installDropInClassLoader()
     application {
         Window(
             onCloseRequest = ::exitApplication,
@@ -58,37 +56,45 @@ fun main() {
                     },
                 ),
             ) {
-                NaHalNavigator(plugin = dropInPlugin)
+                NaHalNavigator()
             }
         }
     }
 }
 
 /**
- * Loads plugin jars dropped into a plugins directory as runtime dependencies of the app, so
- * downloaded plugins activate without rebuilding. The directory is `$NAHAL_PLUGINS_DIR`, else a
- * `plugins` folder in the working directory; absent or empty → no plugins are added.
+ * Makes plugin jars dropped into a plugins directory *resolvable*, so a `HALDISH_CONFIG` entry can
+ * name one by FQN without rebuilding the app or editing its classpath. The directory is
+ * `$NAHAL_PLUGINS_DIR`, else a `plugins` folder in the working directory; absent or empty → nothing
+ * to install.
  *
- * Every `*.jar` there is put on a child [URLClassLoader] and plugins are discovered via
- * [ServiceLoader] (each jar carries `META-INF/services/…HaldishPlugin`). Discovered plugins are
- * combined with [chainedPlugin] and injected into the navigator — no `HALDISH_CONFIG` needed.
- * Config-only plugins (those needing properties) are activated by dropping a configured subclass
- * jar that registers itself via ServiceLoader.
+ * Loading stops here. *Which* of those plugins run, in *what order*, with *what properties* is
+ * decided by the config file alone (`:core` resolves each FQN through the context classloader this
+ * installs) — so no config means no plugins, however full the directory is. That keeps one
+ * mechanism in charge of activation instead of two disagreeing ones: the previous ServiceLoader
+ * scan activated every jar in the directory in file-name order, which no user controls meaningfully
+ * and which silently ignored per-plugin properties.
+ *
+ * The loader is installed on the main thread before any UI thread is spawned, so the threads that
+ * later construct `HalNavigator` inherit it.
  */
-private fun loadDropInPlugins(): HaldishPlugin? {
-    val dir = File(System.getenv("NAHAL_PLUGINS_DIR") ?: "plugins")
+internal fun installDropInClassLoader() {
+    val loader = dropInClassLoader(File(System.getenv("NAHAL_PLUGINS_DIR") ?: "plugins")) ?: return
+    Thread.currentThread().contextClassLoader = loader
+}
+
+/** The child [URLClassLoader] over every `*.jar` in [dir], or null when there is nothing to load. */
+internal fun dropInClassLoader(dir: File): URLClassLoader? {
     val jars = dir.takeIf { it.isDirectory }
         ?.listFiles { f -> f.isFile && f.extension == "jar" }
         ?.sortedBy { it.name }
         ?.takeIf { it.isNotEmpty() }
         ?: return null
 
-    val loader = URLClassLoader(
+    return URLClassLoader(
         jars.map { it.toURI().toURL() }.toTypedArray(),
         Thread.currentThread().contextClassLoader ?: HaldishPlugin::class.java.classLoader,
     )
-    val plugins = ServiceLoader.load(HaldishPlugin::class.java, loader).toList()
-    return if (plugins.isEmpty()) null else chainedPlugin(plugins)
 }
 
 private val appNameCache = mutableMapOf<String, String?>()

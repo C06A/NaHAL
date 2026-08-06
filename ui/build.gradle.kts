@@ -91,8 +91,9 @@ compose.desktop {
     }
 }
 
-// Running the desktop UI with a plugin active lives in each plugin's build script:
-// `./gradlew :plugins:<name>:jvmRun` (see plugins/CLAUDE.md).
+// Running the desktop UI with plugins active lives in each plugin's build script, in the separate
+// ../HALDiSh_Plugins repository: `(cd ../HALDiSh_Plugins && ./gradlew :chain:jvmRun)`.
+// This build stays plugin-free — see "Plugins in the app" in ui/CLAUDE.md.
 
 listOf("macosArm64", "macosX64").forEach { target ->
     val cap = target.replaceFirstChar { it.uppercase() }

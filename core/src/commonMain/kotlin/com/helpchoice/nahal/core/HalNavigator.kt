@@ -19,8 +19,10 @@ class HalNavigator(
 ) : AutoCloseable {
 
     /**
-     * Navigator driven by an explicit [plugin] — e.g. plugins an embedding application assembled
-     * itself (a drop-in plugins directory) — instead of the `HALDISH_CONFIG`-driven default.
+     * Navigator driven by an explicit [plugin] — plugins an embedding application assembled itself
+     * — instead of the `HALDISH_CONFIG`-driven default. The NaHAL desktop UI does *not* use this:
+     * it only makes drop-in jars resolvable and lets the config decide, so activation stays in one
+     * place.
      */
     constructor(plugin: HaldishPlugin, config: NavigatorConfig = NavigatorConfig())
         : this(HalHttpClient(pluginOverride = plugin), config)

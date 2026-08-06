@@ -12,8 +12,9 @@ It handles HAL document parsing, RFC 6570 URI template expansion, and HTTP commu
 The Haldish library itself now lives in its own repository, `../HALDiSh_KMP`, and is consumed
 here as `com.helpchoice.nahal:haldish`. Every `./gradlew` command in the library sections below
 is run from that project (where the library is the root project, so the tasks carry no module
-prefix). This repository builds the NaHAL navigator on top of it: `:core`, `:ui`, `:plugins:*`,
-`:testkit`.
+prefix). The example plugins were likewise split out, into `../HALDiSh_Plugins`
+(`com.helpchoice.nahal:haldish-plugin-<name>`). This repository builds the NaHAL navigator on top
+of both: `:core`, `:ui`, `:testkit`.
 ====
 
 == Supported Platforms

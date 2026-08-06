@@ -14,17 +14,22 @@ internal const val CORE_VERSION = "0.1.0-SNAPSHOT"
 
 /**
  * Loads plugins from the config source and returns a single [HaldishPlugin] ready for injection
- * into [com.helpchoice.nahal.haldish.http.HalHttpClient].
+ * into [com.helpchoice.nahal.haldish.http.HalHttpClient], or `null` to let haldish's own
+ * platform loader take over.
  *
  * Resolution order:
  * 1. [coreBrowserRawConfig] — browser JS / WasmJS (window.__nahalConfig)
  * 2. `HALDISH_CONFIG` env var → read file, parse JSON or YAML
- * 3. Neither present → [CoreNoOpPlugin] (no plugins)
+ * 3. No config but `HALDISH_PLUGIN_PATH` is set → `null`, so `HalHttpClient` falls back to
+ *    haldish's own loader for the single artifact that variable points at (a JAR on the JVM,
+ *    a `.dylib`/`.so`/`.dll` on native). Naming that artifact *is* the configuration.
+ * 4. Neither present → [CoreNoOpPlugin]. No config, no plugins: a plugin sitting on the
+ *    classpath or in a drop-in directory stays inactive until a config names it.
  */
-internal fun buildConfiguredPlugin(): HaldishPlugin {
+internal fun buildConfiguredPlugin(): HaldishPlugin? {
     val rawMap = coreBrowserRawConfig()
         ?: run {
-            val path = coreEnvVar("HALDISH_CONFIG") ?: return CoreNoOpPlugin
+            val path = coreEnvVar("HALDISH_CONFIG") ?: return unconfiguredPlugin()
             val content = coreReadTextFile(path)
             val ext = path.substringAfterLast('.').lowercase()
             when (ext) {
@@ -39,9 +44,18 @@ internal fun buildConfiguredPlugin(): HaldishPlugin {
 }
 
 /**
+ * What to hand `HalHttpClient` when no config source was found: `null` — delegate to haldish's
+ * loader — when `HALDISH_PLUGIN_PATH` points at a plugin artifact, otherwise a no-op plugin that
+ * suppresses platform discovery.
+ */
+private fun unconfiguredPlugin(): HaldishPlugin? =
+    if (coreEnvVar("HALDISH_PLUGIN_PATH") != null) null else CoreNoOpPlugin
+
+/**
  * Combines [plugins] into a single [HaldishPlugin] whose hooks run in list order. Empty → a no-op
- * plugin; one → that plugin unchanged. Public so embedders (e.g. the desktop UI's drop-in plugins
- * directory) can chain plugins they discovered themselves and hand the result to [HalNavigator].
+ * plugin; one → that plugin unchanged. Public so embedders that assemble plugins themselves —
+ * rather than letting a config file name them — can chain them and hand the result to
+ * [HalNavigator].
  */
 fun chainedPlugin(plugins: List<HaldishPlugin>): HaldishPlugin = when (plugins.size) {
     0 -> CoreNoOpPlugin

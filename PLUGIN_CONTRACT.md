@@ -445,7 +445,7 @@ discovery more than once).
 
 ## Declarative configuration (`:nahal-core`)
 
-The `:nahal-core` module adds a **config-file-driven plugin loading mechanism** on top of `HaldishPlugin`.  When you use `HalNavigator` (instead of `HalHttpClient` directly), plugins are loaded, configured, and injected automatically at construction time.  Platform-level discovery (ServiceLoader, `window.__haldishPlugin`, etc.) is **bypassed entirely** — plugins are only active when a config source is present.
+The `:nahal-core` module adds a **config-file-driven plugin loading mechanism** on top of `HaldishPlugin`.  When you use `HalNavigator` (instead of `HalHttpClient` directly), plugins are loaded, configured, and injected automatically at construction time.  Platform-level discovery (ServiceLoader, `window.__haldishPlugin`, etc.) is **bypassed** — plugins are only active when a config source is present, with one exception: setting `HALDISH_PLUGIN_PATH` without a config hands control back to haldish's own loader for the single artifact that variable names (see [No config](#no-config) below).
 
 ### Config file format
 
@@ -482,7 +482,14 @@ YAML is supported on JVM and JS/Node.js (kaml).  On native targets use JSON.
 | WasmJS | `window.__nahalConfig` JS object | `CorePluginRegistry` lookup by FQN |
 | Native (Linux / macOS / Windows) | `HALDISH_CONFIG` env var (file path, JSON only) | `CorePluginRegistry` lookup by FQN |
 
-If neither `HALDISH_CONFIG` nor `window.__nahalConfig` is present, `HalNavigator` uses a no-op plugin — **no exceptions thrown**.
+### No config
+
+With no config source, `HalNavigator` takes one of two paths — **no exceptions thrown** either way:
+
+| Situation | Result |
+|---|---|
+| No config, no `HALDISH_PLUGIN_PATH` | No-op plugin. Nothing runs — not a plugin on the classpath, not a jar in a drop-in directory. Activation requires a config that names it. |
+| No config, `HALDISH_PLUGIN_PATH` set | `HalNavigator` passes no override, so haldish's own loader takes the **single** artifact that variable points at: a JAR on the JVM, a `.dylib` / `.so` / `.dll` on native. Chain several plugins by pointing it at a chain artifact (`haldish-plugin-chain`'s `libhaldish_plugin.*`). Note the C ABI carries only `platform` and `version` to `initialize()`, so a native artifact cannot be configured from the config file — bake its settings in when you build it. |
 
 ### JVM usage
 
@@ -491,6 +498,8 @@ Point `HALDISH_CONFIG` at a JSON or YAML file.  Any `HaldishPlugin` class on the
 ```bash
 HALDISH_CONFIG=/etc/myapp/plugins.yaml java -jar myapp.jar
 ```
+
+Classes reachable from the **thread context classloader** count as on the classpath, which is how an application can offer a drop-in plugins directory without rebuilding: put the directory's jars on a child `URLClassLoader`, install it as the context classloader before constructing `HalNavigator`, and let the config name them.  The NaHAL desktop UI does exactly this (`ui/.../main.kt`, `NAHAL_PLUGINS_DIR`).
 
 ### JS / Node.js usage
 

@@ -16,7 +16,7 @@ dependencies {
     // haldish is the wrapped client; re-exported so callers see HalLink/HalHttpResponse etc.
     api(libs.haldish)
     // Reuse the CURIE link-expansion logic and the curies documentation resolver.
-    implementation(project(":plugins:curie"))
+    implementation(libs.haldish.plugin.curie)
     implementation(project(":core"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)

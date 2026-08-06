@@ -49,7 +49,7 @@ HalNavigator.navigate(resource, selector, method, ...)
 | `NavigationResponse` | Wraps `HalHttpResponse` + parsed `HalDocument?`; exposes `isHal`, `statusCode`, `isSuccess` |
 | `NavigatorConfig` | `defaultHeaders`, `defaultCookies` merged into each request |
 | `CoreException` | Sealed base; `NoSuchLinkException(selector)` thrown when `LinkSelector.select` returns null |
-| `DocLinkResolver` | Object mirroring HALDiSh's `haldoclink.sh`. Resolves a rel's documentation URL: matches the CURIE prefix against the lowercase HAL-spec `curies` relation, expanding its `{rel}` URI template; walks the holding document **outward through enclosing resources to the root**, first matching prefix wins. Accepts CURIE-prefixed (`doc:orders`) or bare (`orders`) rels. Distinct from `:plugins:curie` (uppercase `CURIE` URL-prefix rewrite). |
+| `DocLinkResolver` | Object mirroring HALDiSh's `haldoclink.sh`. Resolves a rel's documentation URL: matches the CURIE prefix against the lowercase HAL-spec `curies` relation, expanding its `{rel}` URI template; walks the holding document **outward through enclosing resources to the root**, first matching prefix wins. Accepts CURIE-prefixed (`doc:orders`) or bare (`orders`) rels. Distinct from the `curie` plugin in ../HALDiSh_Plugins (uppercase `CURIE` URL-prefix rewrite). |
 
 ## Platform-specific pieces
 

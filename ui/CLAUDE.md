@@ -18,11 +18,18 @@ for tokens, copy and interaction specs.
 # Run the desktop GUI (JVM — opens a 1280×820 window)
 ./gradlew :ui:jvmRun
 
-# Run the desktop GUI with a plugin active — each plugin module overrides its own `jvmRun`
-# (puts that plugin's jvm artifact on the UI classpath + generates its HALDISH_CONFIG).
-# E.g. base-url-rewriter, so relative link hrefs resolve (the default NoOp plugin sends
-# relative URLs as-is). See plugins/CLAUDE.md for the full list.
-./gradlew :plugins:base-url-rewriter:jvmRun
+# Run the desktop GUI with plugins active. The plugins live in ../HALDiSh_Plugins now; each module
+# there overrides its own `jvmRun` (puts that plugin's jvm artifact on the UI classpath + generates
+# its HALDISH_CONFIG) and resolves :ui as the published nahal-ui artifact. The chain module runs the
+# full curie → base-url-rewriter → logger chain; single plugins run from their own module:
+#   (cd ../HALDiSh_Plugins && ./gradlew :chain:jvmRun)
+#   (cd ../HALDiSh_Plugins && ./gradlew :base-url-rewriter:jvmRun)   # relative hrefs resolve
+#
+# Those need the artifacts they consume in the local Maven repository first (Central has neither
+# 2.0.0 nor the plugins yet). Bootstrap order:
+#   (cd ../HALDiSh_KMP && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
+#   ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false
+
 
 # Build the web UI (JS — output: ui/build/dist/js/productionExecutable/)
 ./gradlew :ui:jsBrowserProductionWebpack
@@ -30,6 +37,26 @@ for tokens, copy and interaction specs.
 # Build the Wasm web UI
 ./gradlew :ui:wasmJsBrowserProductionWebpack
 ```
+
+## Plugins in the app
+
+The app ships **without** plugins. Nothing activates unless a config source names it — a plugin on
+the classpath or a jar in the drop-in directory stays inert on its own.
+
+| Runtime | How plugins get in | Ordering & properties |
+|---|---|---|
+| JVM (macOS / Linux / Windows) | Drop `*.jar` into `$NAHAL_PLUGINS_DIR` (default: `plugins/` in the working dir). `main()` puts them on a child `URLClassLoader` and installs it as the thread context classloader — that is *all* it does. | `HALDISH_CONFIG` (JSON or YAML, or the same-named system property) lists FQNs; file order = chain order; each entry's children reach `initialize()` as `config.properties`. |
+| Native macOS | No reflection → plugins must be compiled in and registered by FQN in `CorePluginRegistry` before the UI starts. That app is built in the plugin repo: `(cd ../HALDiSh_Plugins && ./gradlew :chain:runMacosX64App)` — see its `src/macosAppMain/.../Main.kt`. | `HALDISH_CONFIG` (JSON only) picks which registered plugins run, in what order. |
+| Any platform, single artifact | `HALDISH_PLUGIN_PATH` with **no** `HALDISH_CONFIG` → `:core` passes no override and haldish's own loader takes that one artifact (JAR on JVM, `.dylib` on native). Naming the artifact is the configuration. | Chain several by pointing at a chain artifact — `(cd ../HALDiSh_Plugins && ./gradlew :chain:linkHaldish_pluginReleaseSharedMacosX64)` builds `libhaldish_plugin.dylib` with curie → base-url-rewriter → logger baked in. Note the C ABI passes no properties. |
+| JS / Wasm / iOS | Registered in app code; config comes from `window.__nahalConfig`. | Same order-and-properties rules. |
+
+Ordering deliberately lives in the config, never in file names — `main.kt` used to chain every jar
+in the directory in file-name order via `ServiceLoader`, which nobody can control meaningfully and
+which dropped per-plugin properties on the floor.
+
+Caveat for bundled macOS apps: `runMacos*App` launches via `open`, and LaunchServices does not pass
+the shell environment, so `HALDISH_CONFIG` / `HALDISH_PLUGIN_PATH` set in a terminal do not reach
+the app. Run the `.kexe` directly when you need env vars.
 
 ## Structure
 
