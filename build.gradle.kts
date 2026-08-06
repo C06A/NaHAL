@@ -12,6 +12,58 @@ allprojects {
     version = "2.0.0"
 }
 
+// ── Maven Central bundle slimming ─────────────────────────────────────────────
+// Gradle's maven-publish writes md5/sha1/sha256/sha512 next to *every* file it stages,
+// including the detached `.asc` GPG signatures — so each artifact ships four checksums of
+// its own plus four checksums *of its signature*. The latter are dead weight: Maven Central
+// checksums artifacts, not signatures, and no resolver ever requests a `.asc.sha1`. On a
+// build publishing this many KMP targets they are roughly 40% of the uploaded bundle.
+//
+// Dropped here: only `*.asc.md5|sha1|sha256|sha512`.
+// Kept: the `.asc` signatures themselves, the artifacts' own checksums, `.pom`, `.module`
+// (Gradle needs it to resolve KMP variants), `-sources.jar` and `-javadoc.jar`.
+//
+// Timing: gradle-maven-publish-plugin 0.35.0 stages into build/publishing/mavenCentral
+// (MavenPublishBaseExtension) and only zips + uploads it from MavenCentralBuildService.close(),
+// a build-finished hook — so a task finalizer still runs before the bundle is assembled.
+// prepareMavenCentralPublishing wipes the staging directory on every run, which keeps the
+// publish tasks from going up-to-date and guarantees this finalizer fires each time.
+//
+// Applied per publishing project: every module stages into its own build/publishing/mavenCentral
+// and the zipper walks all of them.
+allprojects {
+    plugins.withId("com.vanniktech.maven.publish") {
+        // Captured at configuration time, resolved inside doLast — configuration-cache safe.
+        val stagingDir = layout.buildDirectory.dir("publishing/mavenCentral")
+
+        val pruneSignatureChecksums = tasks.register("pruneSignatureChecksums") {
+            group       = "publishing"
+            description = "Deletes checksum files of the .asc signatures from the Maven Central staging directory."
+            // The staging directory is rewritten by every publish run, so caching a result is meaningless.
+            outputs.upToDateWhen { false }
+
+            doLast {
+                val dir = stagingDir.get().asFile
+                if (!dir.exists()) {
+                    logger.info("No Maven Central staging directory at $dir — nothing to prune.")
+                    return@doLast
+                }
+                val pruned = dir.walkTopDown()
+                    .filter { it.isFile && it.name.contains(".asc.") }
+                    .onEach { it.delete() }
+                    .count()
+                logger.lifecycle("Pruned $pruned signature checksum file(s) from $dir")
+            }
+        }
+
+        tasks.withType<PublishToMavenRepository>().configureEach {
+            if (name.endsWith("ToMavenCentralRepository")) {
+                finalizedBy(pruneSignatureChecksums)
+            }
+        }
+    }
+}
+
 // ── GitHub release artifact staging ───────────────────────────────────────────
 // Organizes distributable assets into build/release/ grouped for a GitHub release.
 // Does NOT upload anything. Run:  ./gradlew stageReleaseArtifacts
@@ -114,72 +166,3 @@ fun writeReleaseChecksums(dir: File): List<File> {
     }
     return assets
 }
-
-// ── Plugin release artifacts ──────────────────────────────────────────────────
-// Each plugin is a runtime-dependency library, one asset per plugin per platform:
-//   • haldish-plugin-<name>-<version>.jar          — JVM thin jar (drop into the app's plugins dir,
-//                                                     or point HALDISH_PLUGIN_PATH at it)
-//   • haldish-plugin-<name>-<platform>-<version>.zip — native libhaldish_plugin.* shared lib +
-//                                                     header (point HALDISH_PLUGIN_PATH at the lib;
-//                                                     loaded via dlopen)
-// Browser JS is intentionally excluded (it has no runtime dynamic-library loading).
-data class PluginArtifact(val path: String, val name: String, val linkPrefix: String, val sharedDir: String)
-
-val releasePlugins = listOf(
-    PluginArtifact(":plugins:api-key",           "api-key",           "", "releaseShared"),
-    PluginArtifact(":plugins:curie",             "curie",             "", "releaseShared"),
-    PluginArtifact(":plugins:logger",            "logger",            "", "releaseShared"),
-    PluginArtifact(":plugins:bearer-token",      "bearer-token",      "", "releaseShared"),
-    PluginArtifact(":plugins:base-url-rewriter", "base-url-rewriter", "", "releaseShared"),
-    // chain builds its shared lib from a named "haldish_plugin" binary → different task/dir names.
-    PluginArtifact(":plugins:chain",             "chain",             "Haldish_plugin", "haldish_pluginReleaseShared"),
-)
-
-fun pluginTaskId(name: String) = name.split("-").joinToString("") { it.replaceFirstChar(Char::uppercase) }
-
-val pluginJarTasks = releasePlugins.map { p ->
-    val gradleName = p.path.substringAfterLast(":")
-    tasks.register<Copy>("stagePlugin${pluginTaskId(p.name)}Jar") {
-        group       = "release"
-        description = "Stages the ${p.name} plugin JVM library jar."
-        dependsOn("${p.path}:jvmJar")
-        from(project(p.path).layout.buildDirectory.dir("libs")) {
-            include("$gradleName-jvm-$releaseVersion.jar")
-            rename { "haldish-plugin-${p.name}-$releaseVersion.jar" }
-        }
-        into(releaseDir)
-    }
-}
-
-val pluginNativeZipTasks = releasePlugins.flatMap { p ->
-    nativePlatforms.map { (target, slug) ->
-        val cap = target.replaceFirstChar { it.uppercase() }
-        tasks.register<Zip>("stagePlugin${pluginTaskId(p.name)}Native$cap") {
-            group       = "release"
-            description = "Stages the ${p.name} plugin native shared library for $slug."
-            dependsOn("${p.path}:link${p.linkPrefix}ReleaseShared$cap")
-            archiveFileName.set("haldish-plugin-${p.name}-$slug-$releaseVersion.zip")
-            destinationDirectory.set(releaseDir)
-            from(project(p.path).layout.buildDirectory.dir("bin/${target}/${p.sharedDir}")) {
-                include("*.so", "*.dylib", "*.dll", "*.h")  // shared lib + generated header
-                exclude("**/*.dSYM/**", "*.def")            // drop debug bundles + module defs
-            }
-        }
-    }
-}
-
-tasks.register("stagePluginArtifacts") {
-    group       = "release"
-    description = "Builds and organizes per-plugin runtime-dependency assets (JVM jar + native libs) under build/release (no upload)."
-    dependsOn(pluginJarTasks, pluginNativeZipTasks)
-    val outDir = releaseDir
-    doLast {
-        val dir = outDir.get().asFile
-        val assets = writeReleaseChecksums(dir)
-        logger.lifecycle("Plugin release assets staged in: $dir")
-        assets.filter { it.name.startsWith("haldish-plugin-") }.forEach { logger.lifecycle("  • ${it.name}") }
-    }
-}
-
-// A full release staging includes the plugin assets.
-tasks.named("stageReleaseArtifacts") { dependsOn("stagePluginArtifacts") }
