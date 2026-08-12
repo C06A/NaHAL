@@ -1,420 +1,330 @@
-= Nahal / Haldish
+= NaHAL — HAL navigator
 :toc: left
 :toclevels: 3
 :icons: font
 :source-highlighter: highlight.js
 
-*Haldish* is a https://stateless.group/hal_specification.html[HAL (Hypertext Application Language)] client library for https://kotlinlang.org/docs/multiplatform.html[Kotlin Multiplatform].
-It handles HAL document parsing, RFC 6570 URI template expansion, and HTTP communication on every supported platform.
+*NaHAL* is a graphical navigator for https://stateless.group/hal_specification.html[HAL (Hypertext Application Language)] APIs, plus the navigation layer it is built on, for https://kotlinlang.org/docs/multiplatform.html[Kotlin Multiplatform].
+Point it at a HAL endpoint and walk the API by following links, expanding URI templates, inspecting embedded resources and building requests — on the desktop, in a browser, or embedded in your own application.
 
 [NOTE]
 ====
-The Haldish library itself now lives in its own repository, `../HALDiSh_KMP`, and is consumed
-here as `com.helpchoice.nahal:haldish`. Every `./gradlew` command in the library sections below
-is run from that project (where the library is the root project, so the tasks carry no module
-prefix). The example plugins were likewise split out, into `../HALDiSh_Plugins`
-(`com.helpchoice.nahal:haldish-plugin-<name>`). This repository builds the NaHAL navigator on top
-of both: `:core`, `:ui`, `:testkit`.
+*The HAL client library and the example plugins are not part of this repository.*
+
+* https://github.com/C06A/HALDiSh_KMP[C06A/HALDiSh_KMP] — the *Haldish* HAL client (parsing, URI templates, HTTP, the plugin contract). Published as `com.helpchoice.nahal:haldish`. Change the HAL client there, not here.
+* https://github.com/C06A/HALDiSh_Plugins[C06A/HALDiSh_Plugins] — the example plugins, published as `com.helpchoice.nahal:haldish-plugin-<name>`. They also own the tasks that launch NaHAL with plugins active.
+
+This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testkit-groovy`.
 ====
 
-== Supported Platforms
+== What is in this repository
 
 |===
-| Target | HTTP engine
+| Module | Artifact | Role
+
+| `:core`
+| `com.helpchoice.nahal:nahal-core`
+| Navigation layer over Haldish — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, config-driven plugin loading, and JS / Wasm / C facades. No application entry point.
+
+| `:ui`
+| `com.helpchoice.nahal:nahal-ui`
+| The Compose Multiplatform navigator GUI: desktop, browser, iOS.
+
+| `:testkit`
+| `com.helpchoice.nahal:haldish-testkit`
+| Kotlin test DSL for driving HAL APIs in tests.
+
+| `:testkit-groovy`
+| `com.helpchoice.nahal:haldish-testkit-groovy`
+| Groovy/Spock bindings for the testkit.
+|===
+
+== Supported platforms
+
+|===
+| Platform | What you get | How it is delivered
+
+| macOS (JVM)
+| Desktop app
+| `.dmg` installer, or `./gradlew :ui:jvmRun`
+
+| macOS (native)
+| Desktop app, no JVM required
+| `NaHAL.app` bundle built by `./gradlew :ui:bundleMacosArm64App`
+
+| Linux
+| Desktop app
+| `.deb` installer, or `./gradlew :ui:jvmRun`
+
+| Windows
+| Desktop app
+| `.msi` installer, or `./gradlew :ui:jvmRun`
+
+| Browser (JS)
+| Web app
+| `nahal-ui-web-<version>.zip`, served from any static host
+
+| Browser (Wasm)
+| — not shipped yet
+| The `wasmJs` target builds klibs only; see <<wasm-status,Wasm status>>
+
+| iOS
+| Embeddable view controller
+| `MainViewController()` from the `nahal-ui` klib; no packaged app in this build
+
+| Linux / macOS / Windows (C)
+| Shared library
+| `libnahal_core.{so,dylib,dll}` + generated header
+|===
+
+== Running the app
+
+=== Desktop, any OS (JVM)
+
+[source,bash]
+----
+./gradlew :ui:jvmRun          # opens a 1280×820 window
+----
+
+Installers are built by Compose Desktop, which only produces the *host* format — a full set needs a CI matrix across the three operating systems:
+
+[source,bash]
+----
+./gradlew :ui:packageDistributionForCurrentOS
+# output: ui/build/compose/binaries/main/{dmg,deb,msi}/
+# e.g. on macOS: NahalNavigator-<version>.dmg
+----
+
+=== macOS, without a JVM (Kotlin/Native)
+
+The macOS targets also build a standalone executable and wrap it in an app bundle:
+
+[source,bash]
+----
+./gradlew :ui:runMacosArm64App     # Apple silicon — builds NaHAL.app and opens it
+./gradlew :ui:runMacosX64App       # Intel
+# bundle only, no launch: ./gradlew :ui:bundleMacosArm64App
+# output: ui/build/NaHAL.app
+----
+
+[NOTE]
+====
+`runMacos*App` launches through `open`, and macOS LaunchServices does not pass the shell
+environment to the app. Environment variables such as `HALDISH_CONFIG` set in a terminal will not
+reach it — run the executable directly (`ui/build/bin/macosArm64/releaseExecutable/ui.kexe`) when
+you need them.
+====
+
+=== Browser
+
+Build the bundle, or take the released zip:
+
+[source,bash]
+----
+./gradlew :ui:jsBrowserDistribution
+# output: ui/build/dist/js/productionExecutable/
+----
+
+[source,bash]
+----
+unzip nahal-ui-web-<version>.zip -d nahal-web
+cd nahal-web
+python3 -m http.server 8080
+# open http://localhost:8080/
+----
+
+The bundle contains `index.html`, the compiled `ui.js`, the Skia runtime (`skiko.js`, `skiko.wasm`) and `composeResources/`. Three things to know:
+
+* It *must* be served over HTTP. `file://` fails, because `skiko.js` fetches `skiko.wasm`.
+* The server must send `application/wasm` for `.wasm` (Python's `http.server` and modern nginx already do; older nginx needs `types { application/wasm wasm; }`).
+* Paths in `index.html` are relative, so hosting under a sub-path works unchanged.
+
+Because a browser build is subject to the same-origin policy, every API you navigate to must return
+`Access-Control-Allow-Origin` for your host. APIs that work in the desktop build can still fail in
+the browser for this reason alone.
+
+[[wasm-status]]
+==== Wasm status
+
+`:ui` declares `wasmJs { browser() }` with no `binaries.executable()`, so no webpack bundle or
+distribution task exists for it — only the published klib. Add `binaries.executable()` to that
+target to build a Wasm web app alongside the JS one.
+
+=== iOS
+
+`:ui` publishes iOS klibs and exposes a Compose entry point; this build produces no `.app` or
+`.ipa`. Embed it from an Xcode project:
+
+[source,swift]
+----
+// SwiftUI
+struct NaHalView: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController { MainViewController() }
+    func updateUIViewController(_ vc: UIViewController, context: Context) {}
+}
+----
+
+== Plugins
+
+NaHAL ships *without* plugins, and activates nothing unless a configuration source names it — a
+plugin sitting on the classpath or in a drop-in directory stays inert on its own.
+
+|===
+| Runtime | How plugins get in | Ordering and properties
 
 | JVM
-| Ktor CIO
+| Drop `*.jar` into `$NAHAL_PLUGINS_DIR` (default `plugins/` in the working directory). The app puts them on a child classloader; that is all it does.
+| `HALDISH_CONFIG` — a JSON or YAML file listing plugin class names. File order is chain order; each entry's children are passed to the plugin's `initialize()`.
 
-| JS (IR) — browser + Node.js
-| ktor-client-js
+| Native
+| No reflection: plugins are compiled in and registered by class name before the UI starts.
+| `HALDISH_CONFIG` (JSON only) selects which registered plugins run, in what order.
 
-| Wasm/JS — browser
-| ktor-client-js
+| Browser
+| Registered by the hosting page.
+| `window.__nahalConfig`.
 
-| macOS x64 / arm64
-| Ktor Darwin
-
-| iOS x64 / arm64 / Simulator arm64
-| Ktor Darwin
-
-| Linux x64 / arm64
-| Ktor cURL
-
-| Windows (mingwX64)
-| Ktor WinHTTP
+| Any, single artifact
+| `HALDISH_PLUGIN_PATH` with *no* `HALDISH_CONFIG` — Haldish's own loader takes that one artifact (a JAR on the JVM, a `.dylib`/`.so`/`.dll` on native). Naming the artifact is the configuration.
+| Chain several by pointing at a chain artifact. Note the native C ABI carries no properties.
 |===
 
-YAML HAL format (`application/hal+yaml`) is supported on JVM and JS only. On native and Wasm targets, YAML responses are not parsed.
+To run the UI with the example plugins chained (CURIE expansion → base-URL rewriting → request logging):
 
-== Dependency
+[source,bash]
+----
+(cd ../HALDiSh_Plugins && ./gradlew :chain:jvmRun)          # desktop, JVM
+(cd ../HALDiSh_Plugins && ./gradlew :chain:runMacosX64App)  # desktop, native macOS
+----
 
-_Publishing to Maven Central is in progress. Until the first release is available, build from source._
+The plugin contract itself — hooks, lifecycle, the C ABI, packaging — is specified in
+link:PLUGIN_CONTRACT.md[PLUGIN_CONTRACT.md].
+
+== Using `nahal-core` as a library
 
 [source,kotlin]
 ----
 // build.gradle.kts
 dependencies {
-    implementation("com.helpchoice.nahal:haldish:<version>")
+    implementation("com.helpchoice.nahal:nahal-core:<version>")
 }
 ----
 
-== Quick Start (Kotlin)
-
 [source,kotlin]
 ----
-import com.helpchoice.nahal.haldish.http.HalHttpClient
-import com.helpchoice.nahal.haldish.uritemplate.expandHref
+import com.helpchoice.nahal.core.HalNavigator
+import com.helpchoice.nahal.core.LinkSelector
+import com.helpchoice.nahal.core.RequestSpec
 
-// HalHttpClient wraps a Ktor HttpClient and adds HAL-aware helpers.
-// It implements AutoCloseable — use `use` or call close() when done.
-val client = HalHttpClient()
+HalNavigator().use { navigator ->
+    // Fetch a starting document
+    val root = navigator.send(RequestSpec(url = "https://api.example.com/")).document!!
 
-// GET a HAL document (sends Accept: application/hal+json, hal+xml, hal+yaml, …)
-val root: HalDocument = client.getHal("https://api.example.com/")
+    // Follow a link by rel — plugins' preLink hook runs, the URI template is expanded,
+    // the response is parsed
+    val orders = navigator.navigate(root, LinkSelector.TopLevel("orders"))
+    println("${orders.statusCode} ${orders.url}")
 
-// Navigate links
-val self: HalLink? = root.link("self")          // first link for rel
-val admins: List<HalLink> = root.links("admin") // all links for rel
-
-// Read embedded resources
-val orders: List<HalDocument> = root.embedded("ea:order")
-
-// Read plain properties
-val count: JsonElement? = root.properties["currentlyProcessing"]
-
-client.close()
-----
-
-=== URI Template Expansion
-
-HAL links can be https://www.rfc-editor.org/rfc/rfc6570[RFC 6570 URI templates].
-Use `expandHref` or `UriTemplate` to expand them before making a request.
-
-[source,kotlin]
-----
-import com.helpchoice.nahal.haldish.uritemplate.UriTemplate
-import com.helpchoice.nahal.haldish.uritemplate.UriTemplateVars
-import com.helpchoice.nahal.haldish.uritemplate.expandHref
-
-// Scalar variable
-val link = root.link("search")!!          // href: "/items{?q,page}"
-val url  = link.expandHref("q" to "hal", "page" to 2)
-// → /items?q=hal&page=2
-
-// List variable
-val vars = UriTemplateVars()
-    .add("name", "Project A")
-    .add("name", "Project B")
-    .set("name_op", "in")
-val filtered = UriTemplate("/items{?name*,name_op}").expand(vars)
-// → /items?name=Project%20A&name=Project%20B&name_op=in
-
-// Expanding with no variables strips all template expressions
-val bare = UriTemplate("/items{?q}").expand()
-// → /items
-----
-
-`UriTemplateVars` supports three value types:
-
-* `set(name, scalar)` — single string value
-* `set(name, list)` / `add(name, value)` — ordered list
-* `set(name, map)` / `put(name, field, value)` — associative map
-
-=== Making Requests
-
-[source,kotlin]
-----
-import com.helpchoice.nahal.haldish.http.HalHttpClient
-import com.helpchoice.nahal.haldish.http.HalRequestBody
-
-val client = HalHttpClient()
-
-// Raw HTTP — returns HalHttpResponse (statusCode, headers, cookies, body, contentType)
-val response = client.get(url)
-val created  = client.post(url, HalRequestBody.Json("""{"name":"foo"}"""))
-val updated  = client.patch(url, HalRequestBody.Json("""{"name":"bar"}"""))
-val deleted  = client.delete(url)
-
-// File upload
-val bytes: ByteArray = java.io.File("photo.jpg").readBytes()
-client.post(url, HalRequestBody.Binary(bytes, "image/jpeg"))
-
-// Multipart
-client.post(url, HalRequestBody.Multipart(listOf(
-    MultipartPart("photo",    photoBytes,    fileName = "photo.jpg",  contentType = "image/jpeg"),
-    MultipartPart("metadata", metaBytes,     contentType = "application/json"),
-)))
-
-// Custom headers and cookies
-client.get(url,
-    headers = mapOf("Authorization" to "Bearer token"),
-    cookies = mapOf("session" to "abc123"),
-)
-
-// GET + parse as HAL in one call (throws HalHttpException on non-2xx)
-val doc: HalDocument = client.getHal(url)
-----
-
-=== Error Handling
-
-All exceptions extend `HaldishException`:
-
-[source,kotlin]
-----
-try {
-    val doc = client.getHal(url)
-} catch (e: HalHttpException) {
-    println("HTTP ${e.statusCode}: ${e.body}")
-} catch (e: HalParseException) {
-    println("Parse error: ${e.message}")
-} catch (e: UriTemplateException) {
-    println("Template error: ${e.message}")
+    // Links inside embedded resources and collection items
+    navigator.navigate(root, LinkSelector.InEmbedded("ea:order", linkRel = "self"))
+    navigator.navigate(root, LinkSelector.InItems(itemIndex = 0, linkRel = "self"))
 }
 ----
 
-== Java
+`DocLinkResolver` resolves a rel's *documentation* URL from the HAL `curies` relation, walking
+outward through enclosing resources.
 
-`HalHttpClient` is usable from Java. Kotlin suspend functions are called via `BuildersKt.runBlocking`:
+=== JavaScript / Node.js
 
-[source,java]
-----
-try (HalHttpClient client = new HalHttpClient()) {
-    HalDocument root = (HalDocument) BuildersKt.runBlocking(
-        EmptyCoroutineContext.INSTANCE,
-        (scope, cont) -> client.getHal("https://api.example.com/", Map.of(), cont)
-    );
-    String href = root.link("projects").getHref();
-
-    UriTemplateVars vars = new UriTemplateVars()
-        .set("name", Arrays.asList("Project A", "Project B"))
-        .set("name_op", "in");
-    String url = new UriTemplate(href).expand(vars);
-}
-----
-
-A full walkthrough is in link:examples/java/CrudExample.java[].
-
-== JavaScript (Node.js)
-
-Build the JS library:
+The `:core` JS target publishes a library with an exported navigator facade:
 
 [source,bash]
 ----
-./gradlew jsNodeProductionLibrary
-# output: build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs
+./gradlew :core:jsNodeProductionLibraryDistribution
 ----
 
 [source,javascript]
 ----
-import { JsHalClient, JsHeaders, JsMultipartPart } from
-    './build/compileSync/js/main/productionLibrary/kotlin/haldish.mjs';
-
-const client = new JsHalClient();
-
-// All HTTP methods return Promise<JsResponse> ({ statusCode, body })
-const resp = await client.get('https://api.example.com/');
-const root = JSON.parse(resp.body);
-const tmpl = root._links.projects.href;
-
-// URI template expansion (builder pattern)
-client.varsAdd('name', 'Project A');
-client.varsAdd('name', 'Project B');
-client.varsSet('name_op', 'in');
-const url = client.expandVars(tmpl);   // expands and resets the builder
-
-// Custom headers
-const headers = new JsHeaders()
-    .set('Authorization', 'Bearer token')
-    .set('Accept', 'application/hal+xml');
-const r = await client.get(url, headers);
-
-// File upload (bytes must be Int8Array)
-await client.postFile(url, int8Array, 'image/jpeg');
-
-// Multipart
-const parts = [
-    new JsMultipartPart('photo',    int8Array,  'image/jpeg',       'photo.jpg'),
-    new JsMultipartPart('metadata', metaBytes,  'application/json'),
-];
-await client.postMultipart(url, parts);
-
-client.close();
+const nav = new JsCoreNavigator();
+nav.linkHref(halJson, 'orders');                       // href for a top-level rel
+nav.embeddedLinkHref(halJson, 'ea:order', 'self');     // href inside an embedded resource
 ----
 
-Full example: link:examples/javascript/crud-example.mjs[].
+On Wasm the same operations are module-level functions (`coreLinkHref`, `coreEmbeddedLinkHref`),
+because Kotlin/Wasm restricts `@JsExport` to functions.
 
-== WebAssembly (Browser)
-
-Build the Wasm library:
+=== C / C++
 
 [source,bash]
 ----
-./gradlew wasmJsBrowserProductionLibrary
-# output: build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs
+./gradlew :core:linkReleaseSharedMacosArm64   # or …LinuxX64, …MingwX64, …MacosX64
+# output: core/build/bin/<target>/releaseShared/
+#   libnahal_core.dylib   (.so / .dll)
+#   libnahal_core_api.h
 ----
-
-The Wasm module must be served over HTTP (not `file://`) because browsers block Wasm loading from local files:
-
-[source,bash]
-----
-npx serve .        # from the repo root
-# open http://localhost:3000/examples/wasm/crud-example.html
-----
-
-Kotlin/Wasm restricts `@JsExport` to functions only (classes are not supported), so the Wasm API is exposed as module-level functions with shared state — the same pattern as the native C API.
-After awaiting any HTTP call, read the result with `wasmLastStatus()` and `wasmLastBody()`.
-
-The generated `.mjs` uses top-level `await` to initialise the Wasm runtime; all exports are ready as soon as the import resolves.
-
-[source,javascript]
-----
-import {
-  wasmGet, wasmPost, wasmPatch, wasmDelete,
-  wasmPostFile, wasmPartAdd, wasmPartsClear, wasmPostMultipart,
-  wasmLastStatus, wasmLastBody,
-  wasmHeaderSet, wasmHeadersClear,
-  wasmVarsSet, wasmVarsAdd, wasmExpandVars,
-  wasmClose,
-} from './build/compileSync/wasmJs/main/productionLibrary/kotlin/haldish.mjs';
-
-// GET — read result after awaiting
-await wasmGet('https://api.example.com/');
-const root = JSON.parse(wasmLastBody());
-const tmpl = root._links.projects.href;
-
-// URI template expansion (builder pattern, same as JS)
-wasmVarsAdd('name', 'Project A');
-wasmVarsAdd('name', 'Project B');
-wasmVarsSet('name_op', 'in');
-const url = wasmExpandVars(tmpl);   // expands and resets the builder
-
-// Custom headers (consumed and cleared after the next HTTP call)
-wasmHeaderSet('Authorization', 'Bearer token');
-wasmHeaderSet('Accept', 'application/hal+xml');
-await wasmGet(url);
-
-// File upload (bytes as Int8Array)
-await wasmPostFile(url, int8Array, 'image/jpeg');
-
-// Multipart
-wasmPartAdd('photo',    int8Array,  'image/jpeg',       'photo.jpg');
-wasmPartAdd('metadata', metaBytes,  'application/json', null);
-await wasmPostMultipart(url);
-
-wasmClose();
-----
-
-Full example: link:examples/wasm/crud-example.html[].
-
-== Native (C / C++)
-
-Build the shared library for your target:
-
-[source,bash]
-----
-# macOS
-./gradlew linkReleaseSharedMacosArm64
-# Linux
-./gradlew linkReleaseSharedLinuxX64
-# Windows
-./gradlew linkReleaseSharedMingwX64
-----
-
-Output (e.g., macOS arm64):
-
-----
-build/bin/macosArm64/releaseShared/
-  libhaldish_api.h   ← generated C header
-  libhaldish.dylib   ← shared library
-----
-
-Compile and link (macOS example):
-
-[source,bash]
-----
-OUTDIR=build/bin/macosArm64/releaseShared
-g++ -std=c++17 -o my_app my_app.cpp \
-    -I$OUTDIR -L$OUTDIR -lhaldish -Wl,-rpath,$OUTDIR
-----
-
-The C API (`NativeCApi.kt`) exposes functions via `@CName`:
 
 [source,c]
 ----
-// HTTP
-const char* haldish_get(const char* url);
-const char* haldish_post_json(const char* url, const char* json);
-const char* haldish_patch_json(const char* url, const char* json);
-int         haldish_delete(const char* url);
-const char* haldish_post_file(const char* url, int8_t* data, int size, const char* contentType);
-
-// Last-response metadata (read after any HTTP call)
-int         haldish_last_status();
-const char* haldish_last_content_type();
-
-// Request headers (consumed on the next HTTP call)
-void haldish_headers_set(const char* key, const char* value);
-void haldish_headers_clear();
-
-// Multipart builder
-void        haldish_part_add(const char* name, int8_t* data, int size,
-                             const char* contentType, const char* fileName);
-void        haldish_parts_clear();
-const char* haldish_post_multipart(const char* url);
-
-// HAL navigation (parse body, extract links)
-const char* haldish_link_href(const char* body, const char* contentType, const char* rel);
-const char* haldish_first_embedded_self(const char* body, const char* contentType,
-                                        const char* embeddedRel);
-
-// URI template expansion
-const char* haldish_expand(const char* tmpl);           // no variables
-void        haldish_vars_set(const char* key, const char* value);
-void        haldish_vars_add(const char* key, const char* value);
-void        haldish_vars_reset();
-const char* haldish_expand_vars(const char* tmpl);      // expand + reset builder
-
-// Utilities
-const char* haldish_pretty_json(const char* compact);
+const char* core_link_href(const char* halJson, const char* rel);
+const char* core_embedded_link_href(const char* halJson, const char* embeddedRel,
+                                    const char* linkRel);
 ----
 
-Full example: link:examples/cpp/crud_example.cpp[].
+The full HAL client C API — HTTP verbs, headers, multipart, URI templates — belongs to Haldish and
+is documented in https://github.com/C06A/HALDiSh_KMP[its repository].
 
-== HAL Format Detection
-
-When no `Content-Type` header is present, the parser sniffs the body:
-
-|===
-| Starts with | Detected format
-
-| `{` or `[`
-| JSON
-
-| `<`
-| XML
-
-| anything else (non-empty)
-| YAML
-|===
-
-Explicit content types take precedence: `application/hal+json`, `application/json`, `application/hal+xml`, `application/xml`, `text/xml`, `application/hal+yaml`, `application/yaml`, `text/yaml`.
-
-== Building
+== Building and testing
 
 [source,bash]
 ----
-# Build and test (JVM, JS, native for the host platform)
-./gradlew build
-
-# JVM tests only
-./gradlew jvmTest
-
-# Coverage report (printed to the console, JVM only)
-./gradlew coverageReport
+./gradlew build              # all modules, host platform targets
+./gradlew :core:jvmTest      # core tests (JVM is the only target with a standard runner)
+./gradlew :core:coverageReport
 ----
 
-== Related Tools
+Because Maven Central currently serves only Haldish 1.0.1, building against the current 2.0.0 needs
+it published locally first — `settings.gradle.kts` adds `mavenLocal()` for exactly this:
 
+[source,bash]
+----
+(cd ../HALDiSh_KMP && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
+./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false
+(cd ../HALDiSh_Plugins && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
+----
+
+That is also the bootstrap order between the three repositories: Haldish → this build → plugins
+(`:testkit` here consumes the CURIE plugin).
+
+== Release artifacts
+
+[source,bash]
+----
+./gradlew stageReleaseArtifacts    # collects into build/release/, uploads nothing
+----
+
+|===
+| Asset | Contents
+
+| `NahalNavigator-<version>.dmg` / `.deb` / `.msi`
+| Desktop installer — host OS format only
+
+| `nahal-ui-web-<version>.zip`
+| Browser app bundle (JS)
+
+| `nahal-native-<platform>-<version>.zip`
+| `nahal-core` shared library + C header, for `macos-arm64`, `macos-x64`, `linux-x64`, `windows-x64`
+
+| `<asset>.sha256`
+| Checksum for every asset above
+|===
+
+Attach all of them to the GitHub release. Klibs, sources and javadoc are not duplicated here —
+Maven Central serves those for Gradle and Maven users.
+
+== Related tools
+
+* https://github.com/C06A/HALDiSh_KMP[HALDiSh_KMP] — the Haldish HAL client library this navigator is built on
+* https://github.com/C06A/HALDiSh_Plugins[HALDiSh_Plugins] — example plugins, and the tasks that run NaHAL with them active
 * https://github.com/C06A/HALDiSh[HALDiSh] — a BASH script implementation of HAL client functionality
 * https://github.com/C06A/MockingHAL[MockingHAL] — a mock HAL server useful for testing plugins
 
