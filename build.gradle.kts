@@ -9,7 +9,7 @@ plugins {
 
 allprojects {
     group   = "com.helpchoice.nahal"
-    version = "2.0.0"
+    version = "2.0.1"
 }
 
 // ── Maven Central bundle slimming ─────────────────────────────────────────────
@@ -109,13 +109,30 @@ val nativeZipTasks = nativePlatforms.map { (target, slug) ->
 val zipWebUi = tasks.register<Zip>("zipWebUi") {
     group       = "release"
     description = "Stages the browser UI bundle (JS)."
+    // `jsBrowserDistribution`, not `jsBrowserProductionWebpack`: the webpack task only emits the
+    // compiled ui.js into build/kotlin-webpack/, while the distribution task assembles the
+    // servable bundle in build/dist/js/productionExecutable — index.html, the skiko wasm/js
+    // runtime and composeResources included.
+    //
     // Note: the wasmJs target declares only browser(), no binaries.executable(),
     // so there is no wasm webpack bundle to ship. Add binaries.executable() to
     // the ui wasmJs target if a wasm web build is wanted here.
-    dependsOn(":ui:jsBrowserProductionWebpack")
+    dependsOn(":ui:jsBrowserDistribution")
     archiveFileName.set("nahal-ui-web-$releaseVersion.zip")
     destinationDirectory.set(releaseDir)
-    from(project(":ui").layout.buildDirectory.dir("dist/js/productionExecutable"))
+
+    val bundleDir = project(":ui").layout.buildDirectory.dir("dist/js/productionExecutable")
+    from(bundleDir) { exclude(".gitkeep") }
+
+    // A Zip whose source directory is empty is skipped as NO-SOURCE and stages nothing at all —
+    // silently, so the release ends up missing the web bundle. Fail loudly instead.
+    doFirst {
+        val dir = bundleDir.get().asFile
+        val entries = dir.listFiles()?.filterNot { it.name == ".gitkeep" }.orEmpty()
+        if (entries.none { it.name == "index.html" }) error(
+            "No web bundle in $dir — expected index.html from :ui:jsBrowserDistribution"
+        )
+    }
 }
 
 // Desktop installer for the current build host (.dmg on macOS, .deb on Linux,
@@ -133,18 +150,32 @@ val stageDesktopInstaller = tasks.register<Copy>("stageDesktopInstaller") {
     into(releaseDir)
 }
 
-tasks.register("stageReleaseArtifacts") {
+// Checksums are a separate task because no single machine can run the full
+// `stageReleaseArtifacts` set: Compose Desktop only packages the host's installer format, and
+// each native shared library is linked on its own host. CI therefore invokes a per-OS subset of
+// the staging tasks above and finishes with this task, which checksums whatever landed in
+// build/release. See .github/workflows/release.yml.
+val checksumReleaseArtifacts = tasks.register("checksumReleaseArtifacts") {
     group       = "release"
-    description = "Builds and organizes all GitHub release assets under build/release (no upload)."
-    dependsOn(nativeZipTasks, zipWebUi, stageDesktopInstaller)
+    description = "Writes a .sha256 beside every asset staged in build/release."
+    // Which assets are present depends on the host and on which staging tasks ran.
+    outputs.upToDateWhen { false }
 
     val outDir = releaseDir
     doLast {
         val dir = outDir.get().asFile
         val assets = writeReleaseChecksums(dir)
+        if (assets.isEmpty()) error("No release assets in $dir — run the staging tasks first.")
         logger.lifecycle("Release assets staged in: $dir")
         assets.forEach { logger.lifecycle("  • ${it.name}") }
     }
+}
+
+tasks.register("stageReleaseArtifacts") {
+    group       = "release"
+    description = "Builds and organizes all GitHub release assets under build/release (no upload)."
+    dependsOn(nativeZipTasks, zipWebUi, stageDesktopInstaller)
+    finalizedBy(checksumReleaseArtifacts)
 }
 
 /** Writes a `<asset>.sha256` next to every release asset in [dir]; returns the assets (sorted). */

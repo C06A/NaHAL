@@ -1,0 +1,276 @@
+# Builds every distributable asset on the host that can actually produce it, then attaches the
+# whole set to one GitHub release.
+#
+#   macOS runner    .dmg installer, nahal-native-macos-arm64.zip, nahal-native-macos-x64.zip
+#   Linux runner    .deb installer, nahal-native-linux-x64.zip,   nahal-ui-web.zip
+#   Windows runner  .msi installer, nahal-native-windows-x64.zip
+#
+# Nothing here is cross-compiled: Compose Desktop only packages the build host's installer
+# format, and each Kotlin/Native shared library is linked on its own host. The staging tasks
+# themselves live in the root build.gradle.kts ("GitHub release artifact staging").
+#
+# Maven Central already serves the JVM/JS/native klibs, sources and javadoc for Gradle and Maven
+# consumers — those are deliberately not duplicated as release assets. Publishing to Central is a
+# separate concern (`./gradlew publish`), not part of this workflow.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (must already exist, e.g. v2.0.0)'
+        required: true
+      haldish_ref:
+        description: 'Ref of C06A/HALDiSh_KMP to build the haldish artifact from'
+        required: false
+        default: 'v2.0.0'
+      draft:
+        description: 'Create the release as a draft'
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  JAVA_VERSION: '21'
+  # haldish is consumed as a published artifact from its own repository. Maven Central currently
+  # serves only 1.0.1, so CI builds the pinned ref and installs it into the local Maven
+  # repository — see the `haldish` job. Once the version this build wants is on Central, delete
+  # that job and the `Restore haldish` step, and drop mavenLocal() from settings.gradle.kts.
+  HALDISH_REF: ${{ github.event.inputs.haldish_ref || 'v2.0.0' }}
+
+jobs:
+  # ── 1. Establish the release tag and confirm the build agrees with it ────────
+  verify:
+    name: Verify version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG='${{ github.event.inputs.tag || github.ref_name }}'
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # A hyphen in the version part marks a pre-release: v2.1.0-rc1, v2.1.0-beta2, …
+          if [[ "${TAG#v}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Read project version
+        id: version
+        run: |
+          VERSION=$(./gradlew -q properties --property version | awk '/^version:/ {print $2}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Tag must match the project version
+        run: |
+          TAG='${{ steps.tag.outputs.tag }}'
+          VERSION='${{ steps.version.outputs.version }}'
+          if [[ "${TAG#v}" != "$VERSION" ]]; then
+            echo "::error::Tag $TAG does not match the version in build.gradle.kts ($VERSION)."
+            echo "::error::Bump the version in the root build.gradle.kts, or tag v$VERSION."
+            exit 1
+          fi
+          echo "Releasing $TAG (project version $VERSION)."
+
+  # ── 2. Build the haldish dependency once, on the host that can build every target ──
+  haldish:
+    name: Bootstrap haldish
+    # macOS is the only Kotlin/Native host that can build the full target set in one pass, so
+    # the artifact published here is complete for all three staging runners.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: C06A/HALDiSh_KMP
+          ref: ${{ env.HALDISH_REF }}
+          path: haldish
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Publish haldish to the local Maven repository
+        working-directory: haldish
+        run: ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false --no-daemon
+
+      - name: Pack the published artifacts
+        run: tar -czf haldish-m2.tar.gz -C "$HOME/.m2/repository" com/helpchoice/nahal
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: haldish-m2
+          path: haldish-m2.tar.gz
+          retention-days: 1
+
+  # ── 3. Stage the assets each host can produce ───────────────────────────────
+  stage:
+    name: Stage (${{ matrix.name }})
+    needs: [verify, haldish]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never publish a half-set of assets: if one host fails, the release job does not run.
+      fail-fast: true
+      matrix:
+        include:
+          - name: macos
+            os: macos-14
+            # macosX64 cross-links from an arm64 host; both are genuine macOS builds.
+            tasks: zipNativeMacosArm64 zipNativeMacosX64 stageDesktopInstaller
+          - name: linux
+            os: ubuntu-latest
+            # The web bundle is host-independent, so it is built here rather than three times.
+            tasks: zipNativeLinuxX64 zipWebUi stageDesktopInstaller
+          - name: windows
+            os: windows-latest
+            tasks: zipNativeMingwX64 stageDesktopInstaller
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: haldish-m2
+
+      - name: Restore haldish into the local Maven repository
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -xzf haldish-m2.tar.gz -C "$HOME/.m2/repository"
+
+      # jpackage shells out to dpkg-deb under fakeroot to build the .deb, and uses objcopy from
+      # binutils. Neither is guaranteed on the runner image.
+      - name: Install .deb packaging tools
+        if: matrix.name == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y fakeroot binutils
+
+      # jpackage builds the .msi with the WiX Toolset v3 (candle.exe / light.exe). The runner
+      # image has carried it historically but does not guarantee it, so install on miss.
+      - name: Ensure WiX Toolset is present
+        if: matrix.name == 'windows'
+        shell: bash
+        run: |
+          if command -v candle >/dev/null 2>&1; then
+            echo "WiX already on PATH."
+          else
+            choco install wixtoolset --version 3.14.1 --no-progress -y
+            echo "C:\\Program Files (x86)\\WiX Toolset v3.14\\bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Stage assets
+        shell: bash
+        run: ./gradlew ${{ matrix.tasks }} --stacktrace
+
+      # Separate invocation on purpose: Gradle orders tasks by their dependency graph, not by
+      # command-line position, so checksumming has to happen after the staging build finishes.
+      - name: Checksum assets
+        shell: bash
+        run: ./gradlew checksumReleaseArtifacts
+
+      - name: List staged assets
+        shell: bash
+        run: ls -lh build/release
+
+      # Explicit extensions rather than build/release/*: the staging tasks can leave empty
+      # directories behind, and only real assets belong on the release page.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.name }}
+          path: |
+            build/release/*.zip
+            build/release/*.dmg
+            build/release/*.deb
+            build/release/*.msi
+            build/release/*.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # ── 4. Collect everything into one GitHub release ───────────────────────────
+  release:
+    name: Publish release
+    needs: [verify, stage]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          merge-multiple: true
+          path: dist
+
+      - name: Build release notes
+        run: |
+          {
+            echo "## NaHAL ${{ needs.verify.outputs.tag }}"
+            echo
+            echo "Desktop installers, the browser UI bundle, and the \`nahal-core\` native shared"
+            echo "libraries. JVM/JS/native klibs for Gradle and Maven consumers are on Maven Central"
+            echo "as \`com.helpchoice.nahal:nahal-core\` and \`com.helpchoice.nahal:nahal-ui\`."
+            echo
+            echo "### Assets"
+            echo
+            echo '| Asset | SHA-256 |'
+            echo '|---|---|'
+            for f in dist/*; do
+              case "$f" in *.sha256) continue ;; esac
+              name=$(basename "$f")
+              sum=$(cut -d' ' -f1 < "$f.sha256" 2>/dev/null || echo '—')
+              echo "| \`$name\` | \`$sum\` |"
+            done
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify.outputs.tag }}
+          # Draft by default: the assets land on the release page but nothing is public until a
+          # human presses Publish. Pass draft=false on workflow_dispatch to publish immediately.
+          DRAFT: ${{ github.event.inputs.draft || 'true' }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          # Plain `if`, not `[[ … ]] && …`: under `set -e` a false test would abort the step.
+          FLAGS=()
+          if [[ "$DRAFT"      == 'true' ]]; then FLAGS+=(--draft);      fi
+          if [[ "$PRERELEASE" == 'true' ]]; then FLAGS+=(--prerelease); fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists — replacing its assets."
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --title "NaHAL $TAG" \
+              --notes-file release-notes.md \
+              "${FLAGS[@]}"
+          fi
+          gh release view "$TAG"
