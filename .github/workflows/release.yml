@@ -131,6 +131,9 @@ jobs:
     name: Stage (${{ matrix.name }})
     needs: [verify, haldish]
     runs-on: ${{ matrix.os }}
+    # Well clear of the slowest leg (a Kotlin/Native Compose link) while still failing a genuinely
+    # stuck job long before GitHub's own 6h cutoff.
+    timeout-minutes: 300
     strategy:
       # Never publish a half-set of assets: if one host fails, the release job does not run.
       fail-fast: true
@@ -140,6 +143,16 @@ jobs:
             os: macos-14
             # macosX64 cross-links from an arm64 host; both are genuine macOS builds.
             tasks: zipNativeMacosArm64 zipNativeMacosX64 stageDesktopInstaller
+          # The two NaHAL.app bundles get a job each. Linking a full Compose app with
+          # Kotlin/Native is by far the slowest thing this build does — hours, not minutes — so
+          # running them in parallel keeps each job clear of GitHub's 6h ceiling instead of
+          # serialising three long links behind one installer build.
+          - name: macos-app-arm64
+            os: macos-14
+            tasks: zipMacosAppMacosArm64
+          - name: macos-app-x64
+            os: macos-14
+            tasks: zipMacosAppMacosX64
           - name: linux
             os: ubuntu-latest
             # The web bundle is host-independent, so it is built here rather than three times.
@@ -147,6 +160,9 @@ jobs:
           - name: windows
             os: windows-latest
             tasks: zipNativeMingwX64 stageDesktopInstaller
+          - name: android
+            os: ubuntu-latest
+            tasks: stageAndroidApp
     steps:
       - uses: actions/checkout@v4
 
@@ -172,6 +188,15 @@ jobs:
       - name: Install .deb packaging tools
         if: matrix.name == 'linux'
         run: sudo apt-get update && sudo apt-get install -y fakeroot binutils
+
+      # The runner image ships an Android SDK but not necessarily this compileSdk. AGP finds it
+      # through ANDROID_HOME (local.properties is gitignored and absent in CI).
+      - name: Install Android SDK packages
+        if: matrix.name == 'android'
+        run: |
+          yes 2>/dev/null | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" "build-tools;35.0.0"
 
       # jpackage builds the .msi with the WiX Toolset v3 (candle.exe / light.exe). The runner
       # image has carried it historically but does not guarantee it, so install on miss.
@@ -214,10 +239,90 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # ── 3b. iOS: the one target Gradle cannot finish on its own ─────────────────
+  # Gradle links NahalUI.framework; turning that into an .app needs Xcode, so this leg does not
+  # fit the task-list matrix above. The result is an unsigned *simulator* build — installable with
+  # `xcrun simctl install booted NaHAL.app`, not on a device. A device build needs an Apple
+  # Developer signing identity, which this workflow deliberately does not handle.
+  stage-ios:
+    name: Stage (ios)
+    needs: [verify, haldish]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: haldish-m2
+
+      - name: Restore haldish into the local Maven repository
+        run: |
+          mkdir -p "$HOME/.m2/repository"
+          tar -xzf haldish-m2.tar.gz -C "$HOME/.m2/repository"
+
+      # Compose Multiplatform 1.8's UIKit bindings reference iOS 17 symbols. Fail with a clear
+      # message rather than a wall of undefined-symbol errors if the runner image regresses.
+      - name: Check the iOS SDK is 17 or newer
+        run: |
+          xcodebuild -version
+          SDK=$(xcodebuild -showsdks | sed -n 's/.*iphonesimulator\([0-9][0-9]*\).*/\1/p' | sort -n | tail -1)
+          echo "Newest iOS simulator SDK: $SDK"
+          if [[ -z "$SDK" || "$SDK" -lt 17 ]]; then
+            echo "::error::Compose Multiplatform needs the iOS 17 SDK or newer; found '$SDK'."
+            exit 1
+          fi
+
+      - name: Link NahalUI.framework
+        run: ./gradlew :ui:copyIosFrameworkForXcode -Pios.target=iosSimulatorArm64 -Pios.config=Debug
+
+      # -target, not -scheme: schemes are autocreated rather than committed, so targeting is the
+      # deterministic choice. Simulator builds need no signing identity.
+      - name: Build the iOS app
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -target iosApp \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath build/ios-derived \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Stage the .app
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          APP=$(find build/ios-derived -type d -name 'NaHAL.app' | head -1)
+          if [[ -z "$APP" ]]; then
+            echo "::error::xcodebuild produced no NaHAL.app"
+            exit 1
+          fi
+          mkdir -p build/release
+          # ditto, not zip: it preserves the bundle's symlinks and permissions.
+          ditto -c -k --keepParent "$APP" "build/release/nahal-app-ios-simulator-$VERSION.zip"
+
+      - name: Checksum assets
+        run: ./gradlew checksumReleaseArtifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-ios
+          path: |
+            build/release/*.zip
+            build/release/*.sha256
+          if-no-files-found: error
+          retention-days: 7
+
   # ── 4. Collect everything into one GitHub release ───────────────────────────
   release:
     name: Publish release
-    needs: [verify, stage]
+    needs: [verify, stage, stage-ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

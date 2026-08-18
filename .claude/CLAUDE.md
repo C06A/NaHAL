@@ -23,7 +23,15 @@ Note the bootstrap order across the three repositories: `../HALDiSh_KMP` → `:c
 | Module | Role | Per-module docs |
 |---|---|---|
 | `:core` | Navigation layer on haldish — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, platform facades. No app entry point. | [core/CLAUDE.md](../core/CLAUDE.md) |
-| `:ui` | Compose Multiplatform desktop/browser/mobile GUI HAL navigator. | [ui/CLAUDE.md](../ui/CLAUDE.md) |
+| `:ui` | Compose Multiplatform desktop/browser/mobile GUI HAL navigator. Library only — including its `androidTarget()` variant. | [ui/CLAUDE.md](../ui/CLAUDE.md) |
+| `:androidApp` | The installable Android app: an Activity hosting `NaHalNavigator()`. Not published to Maven Central. | — |
+| `iosApp/` | Xcode host for the iOS app. Links `NahalUI.framework`, which `:ui` produces. Not a Gradle module. | — |
+
+**Which platforms get a native app.** macOS does (Kotlin/Native, `NaHAL.app`, no JVM), as do
+Android and iOS. Linux and Windows do **not** — Compose Multiplatform ships no Kotlin/Native
+renderer for either, so `ui/src/linuxMain` and `ui/src/mingwMain` are empty and those two ship as
+jpackage `.deb`/`.msi` with an embedded Java runtime. Wasm has no app at all: the `wasmJs` target
+declares `browser()` but no `binaries.executable()`.
 
 > Read the relevant per-module `CLAUDE.md` (it auto-loads when you open files in that module)
 > before working in a module — it carries the build/test commands, data flow, platform-specific
@@ -39,7 +47,12 @@ Note the bootstrap order across the three repositories: `../HALDiSh_KMP` → `:c
 Per-module build/test/run commands live in each module's `CLAUDE.md` (linked above). Quick index:
 
 - `:core` — `./gradlew :core:jvmTest` plus custom non-JVM verification tasks (`runCoreJsTest`, `runCoreNativeTest`).
-- `:ui` — `./gradlew :ui:jvmRun` (desktop), `:jsBrowserProductionWebpack` / `:wasmJsBrowserProductionWebpack` (web).
+- `:ui` — `./gradlew :ui:jvmRun` (desktop), `:jsBrowserProductionWebpack` (web — there is no wasm
+  executable, so no wasm webpack task exists).
+- `:androidApp` — `./gradlew :androidApp:assembleRelease` (APK) / `:bundleRelease` (AAB).
+- Release assets — `./gradlew stageReleaseArtifacts` stages everything the host can build into
+  `build/release/`; the full set spans several hosts, which is what `.github/workflows/release.yml`
+  is for.
 
 **This build produces a plugin-free app.** Plugins activate only when a config source names them:
 `HALDISH_CONFIG` (order + per-plugin properties) over classes the runtime can already resolve —

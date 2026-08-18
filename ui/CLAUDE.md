@@ -34,8 +34,23 @@ for tokens, copy and interaction specs.
 # Build the web UI (JS — output: ui/build/dist/js/productionExecutable/)
 ./gradlew :ui:jsBrowserProductionWebpack
 
-# Build the Wasm web UI
-./gradlew :ui:wasmJsBrowserProductionWebpack
+# There is NO wasm web build. The wasmJs target declares browser() but no
+# binaries.executable(), so no wasmJsBrowserProductionWebpack task exists — only
+# wasmJsBrowserTest. Add binaries.executable() to the wasmJs target to get one.
+
+# Android (the installable app lives in :androidApp; :ui only carries the library variant)
+./gradlew :androidApp:assembleRelease     # APK
+./gradlew :androidApp:bundleRelease       # AAB
+
+# Native macOS desktop app — no JVM. Slow: linking a Compose app with Kotlin/Native
+# takes hours, not minutes.
+./gradlew :ui:runMacosArm64App
+
+# iOS. Gradle only links NahalUI.framework; Xcode turns it into an .app.
+# Needs the iOS 17 SDK (Xcode 15+) — Compose 1.8's UIKit bindings reference iOS 17 symbols.
+./gradlew :ui:copyIosFrameworkForXcode -Pios.target=iosSimulatorArm64 -Pios.config=Debug
+xcodebuild -project iosApp/iosApp.xcodeproj -target iosApp \
+    -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO
 ```
 
 ## Plugins in the app

@@ -22,6 +22,7 @@ dependencyResolutionManagement {
 
 include(":core")
 include(":ui")
+include(":androidApp")
 include(":testkit")
 include(":testkit-groovy")
 

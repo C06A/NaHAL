@@ -4,12 +4,17 @@ import org.w3c.dom.Element
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.android.library)
     alias(libs.plugins.vanniktech.publish)
     alias(libs.plugins.kover)
 }
 
 kotlin {
     jvm()
+
+    androidTarget {
+        publishLibraryVariants("release")
+    }
 
     js(IR) {
         browser()
@@ -37,14 +42,24 @@ kotlin {
     applyDefaultHierarchyTemplate()
 
     sourceSets {
+        // Android runs the JVM platform support verbatim — java.io.File, Class.forName and
+        // System.getenv all behave the same there, so CorePlatformSupport.kt lives in this
+        // shared source set rather than being duplicated. Note corePlatformName() reports "jvm"
+        // on Android too: PLUGIN_CONTRACT.md fixes the vocabulary at
+        // "jvm"/"js"/"wasmjs"/"apple"/"linux"/"windows", that contract is owned by ../HALDiSh_KMP,
+        // and an Android host is a JVM host as far as a plugin is concerned.
+        val jvmAndroidMain by creating { dependsOn(commonMain.get()) }
+        jvmMain.get().dependsOn(jvmAndroidMain)
+        androidMain.get().dependsOn(jvmAndroidMain)
+
+        jvmAndroidMain.dependencies {
+            implementation(libs.kaml)
+        }
+
         commonMain.dependencies {
             api(libs.haldish)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
-        }
-
-        jvmMain.dependencies {
-            implementation(libs.kaml)
         }
 
         jsMain.dependencies {
@@ -56,6 +71,18 @@ kotlin {
             implementation(libs.ktor.client.mock)
             implementation(libs.kotlinx.coroutines.test)
         }
+    }
+}
+
+android {
+    namespace  = "com.helpchoice.nahal.core"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 

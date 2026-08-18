@@ -1,6 +1,11 @@
 plugins {
+    // AGP is declared here (never applied) so the root and every subproject share one plugin
+    // classloader — without it Kotlin's androidTarget() cannot detect the AGP version.
+    alias(libs.plugins.android.application)   apply false
+    alias(libs.plugins.android.library)       apply false
     alias(libs.plugins.kotlin.multiplatform)  apply false
     alias(libs.plugins.kotlin.jvm)            apply false
+    alias(libs.plugins.kotlin.android)        apply false
     alias(libs.plugins.kotlin.serialization)  apply false
     alias(libs.plugins.compose.multiplatform) apply false
     alias(libs.plugins.compose.compiler)      apply false
@@ -68,9 +73,18 @@ allprojects {
 // Organizes distributable assets into build/release/ grouped for a GitHub release.
 // Does NOT upload anything. Run:  ./gradlew stageReleaseArtifacts
 //
-// Groups produced (each a single .zip + a matching .sha256):
-//   • nahal-native-<platform>-<version>.zip  — shared lib + C header, per platform
-//   • nahal-ui-web-<version>.zip             — browser UI bundle (js/ + wasm/)
+// Every asset gets a matching .sha256. Groups produced:
+//   • NahalNavigator-<version>.dmg/.deb/.msi     — desktop installer, host OS only (JRE embedded)
+//   • nahal-app-macos-<arch>-<version>.zip       — NaHAL.app, Kotlin/Native, no JVM at all
+//   • nahal-app-ios-simulator-<version>.zip      — unsigned iOS simulator build (CI only, needs Xcode)
+//   • nahal-android-<version>.apk / .aab         — Android app / Play Store bundle
+//   • nahal-ui-web-<version>.zip                 — browser UI bundle (JS; the wasmJs target
+//                                                  declares no executable, so no wasm bundle)
+//   • nahal-native-<platform>-<version>.zip      — nahal-core shared lib + C header, per platform
+//
+// No JVM-free desktop app exists for Linux or Windows: Compose Multiplatform ships no
+// Kotlin/Native renderer for either. Their .deb/.msi embed a Java runtime instead, so the end
+// user still installs nothing extra.
 //
 // haldish assets (its native libs and the JS/Node library) are released from its own
 // repository, ../HALDiSh_KMP — this build only consumes the published artifact.
@@ -103,6 +117,25 @@ val nativeZipTasks = nativePlatforms.map { (target, slug) ->
             exclude("**/*.dSYM/**", "*.def")             // drop debug bundles + module defs
         }
         from(project(":core").layout.buildDirectory.dir("bin/$target/releaseShared"), patterns)
+    }
+}
+
+// The JVM-free desktop app: Compose Multiplatform on Kotlin/Native, bundled as NaHAL.app.
+// macOS is the only desktop OS this is possible for — Compose Multiplatform ships no Kotlin/Native
+// renderer for Linux or Windows (see the empty ui/src/linuxMain and ui/src/mingwMain). Those two
+// get a jpackage bundle with an embedded Java runtime instead, so the end user still installs no
+// JVM; see stageDesktopInstaller below.
+val macosAppZipTasks = listOf("macosArm64" to "macos-arm64", "macosX64" to "macos-x64").map { (target, slug) ->
+    val cap = target.replaceFirstChar { it.uppercase() }
+    tasks.register<Zip>("zipMacosApp$cap") {
+        group       = "release"
+        description = "Stages the JVM-free NaHAL.app for $slug."
+        dependsOn(":ui:bundle${cap}App")
+        archiveFileName.set("nahal-app-$slug-$releaseVersion.zip")
+        destinationDirectory.set(releaseDir)
+        // Gradle's Zip records unix modes, so Contents/MacOS/NaHAL keeps its executable bit —
+        // without it the bundle is unlaunchable. Asserted by the smoke test in the release docs.
+        from(project(":ui").layout.buildDirectory.dir("macos-app/$target"))
     }
 }
 
@@ -150,6 +183,22 @@ val stageDesktopInstaller = tasks.register<Copy>("stageDesktopInstaller") {
     into(releaseDir)
 }
 
+// Android: the APK is the installable download, the AAB is what a Play Store upload needs.
+// Both come from :androidApp; :ui only carries the reusable android library variant.
+val stageAndroidApp = tasks.register<Copy>("stageAndroidApp") {
+    group       = "release"
+    description = "Stages the Android APK and AAB."
+    dependsOn(":androidApp:assembleRelease", ":androidApp:bundleRelease")
+
+    val outputs = project(":androidApp").layout.buildDirectory
+    from(outputs.dir("outputs/apk/release"))    { include("*.apk") }
+    from(outputs.dir("outputs/bundle/release")) { include("*.aab") }
+    // androidApp-release.apk -> nahal-android-<version>.apk
+    rename("""androidApp-release\.(apk|aab)""", "nahal-android-$releaseVersion.$1")
+    includeEmptyDirs = false
+    into(releaseDir)
+}
+
 // Checksums are a separate task because no single machine can run the full
 // `stageReleaseArtifacts` set: Compose Desktop only packages the host's installer format, and
 // each native shared library is linked on its own host. CI therefore invokes a per-OS subset of
@@ -174,13 +223,13 @@ val checksumReleaseArtifacts = tasks.register("checksumReleaseArtifacts") {
 tasks.register("stageReleaseArtifacts") {
     group       = "release"
     description = "Builds and organizes all GitHub release assets under build/release (no upload)."
-    dependsOn(nativeZipTasks, zipWebUi, stageDesktopInstaller)
+    dependsOn(nativeZipTasks, macosAppZipTasks, zipWebUi, stageDesktopInstaller, stageAndroidApp)
     finalizedBy(checksumReleaseArtifacts)
 }
 
 /** Writes a `<asset>.sha256` next to every release asset in [dir]; returns the assets (sorted). */
 fun writeReleaseChecksums(dir: File): List<File> {
-    val assetExtensions = setOf("zip", "dmg", "deb", "msi", "jar")
+    val assetExtensions = setOf("zip", "dmg", "deb", "msi", "jar", "apk", "aab")
     val assets = dir.listFiles { f -> f.isFile && f.extension in assetExtensions }?.sortedBy { it.name } ?: emptyList()
     assets.forEach { asset ->
         val digest = java.security.MessageDigest.getInstance("SHA-256")
