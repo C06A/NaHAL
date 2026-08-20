@@ -3,7 +3,6 @@ package com.helpchoice.nahal.testkit
 import com.helpchoice.nahal.haldish.http.HalHttpRequest
 import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.haldish.http.MultipartPart
-import com.helpchoice.nahal.haldish.model.HalDocument
 import com.helpchoice.nahal.haldish.model.HalLink
 import io.ktor.http.HttpMethod
 import java.io.File
@@ -67,31 +66,11 @@ class CrudTest {
         assertEquals("reported", response.asText())
     }
 
-    // ── CURIE href expansion (ord:widget → http://api/orders/widget) ─────────────────────────
-
-    @Test
-    fun expandsCurieHref() {
-        val root = MockApi.root()
-        val widget = root.send("GET", "widget").asHal()
-        assertEquals("widget", widget["kind"])
-    }
-
-    // ── SafeCURIE href expansion ([ord:widget] → http://api/orders/widget) ───────────────────
-
-    @Test
-    fun expandsSafeCurieHref() {
-        val root = MockApi.root()
-        val widget = root.send("GET", "safe").asHal()
-        assertEquals("widget", widget["kind"])
-    }
-
-    // ── expandedHref: resolve a link's URL without sending (CURIE/SafeCURIE/template) ─────────
+    // ── expandedHref: resolve a link's URL without sending (template expansion) ───────────────
 
     @Test
     fun expandsHrefWithoutSending() {
         val root = MockApi.root()
-        assertEquals("http://api/orders/widget", root.expandedHref("safe"))   // SafeCURIE
-        assertEquals("http://api/orders/widget", root.expandedHref("widget")) // bare CURIE
         assertEquals("http://api/orders?page=2",
             root.expandedHref("orders", SendOptions(vars = mapOf("page" to 2))))
     }
@@ -213,17 +192,5 @@ class CrudTest {
         )
         val modified = ContentTypeModifier().modify(request, link, ctx)
         assertEquals("application/vnd.custom+json", modified.headers["Content-Type"])
-    }
-
-    @Test
-    fun curieModifierExpandsPrefix() {
-        val ctx = HalContext(MockApi.client())
-        val document = HalDocument(
-            links = mapOf(
-                "CURIE" to listOf(HalLink(href = "http://api/orders/", name = "ord")),
-            )
-        )
-        val expanded = CurieModifier().modify(HalLink(href = "ord:widget"), "widget", document, ctx)
-        assertEquals("http://api/orders/widget", expanded.href)
     }
 }

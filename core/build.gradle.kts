@@ -5,7 +5,6 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.android.library)
-    alias(libs.plugins.vanniktech.publish)
     alias(libs.plugins.kover)
 }
 
@@ -236,36 +235,7 @@ tasks.register<Exec>("runCoreNativeTest") {
     )
 }
 
-// ── Maven publishing ──────────────────────────────────────────────────────────
-
-mavenPublishing {
-    publishToMavenCentral()
-    signAllPublications()
-
-    coordinates(
-        groupId   = project.group.toString(),
-        artifactId = "nahal-core",
-        version   = project.version.toString(),
-    )
-
-    pom {
-        name        = "NaHAL Core"
-        description = "Kotlin Multiplatform networking and domain layer built on Ktor client"
-        url         = "https://github.com/C06A/NaHAL"
-        licenses {
-            license {
-                name = "Apache-2.0"
-                url  = "https://www.apache.org/licenses/LICENSE-2.0"
-            }
-        }
-        developers {
-            developer {
-                id   = "C06A"
-                name = "CAB"
-            }
-        }
-        scm {
-            url = "https://github.com/C06A/NaHAL"
-        }
-    }
-}
+// ── Not published ─────────────────────────────────────────────────────────────
+// `:core` is consumed only inside this build (`:ui`, `:testkit`) and as the `nahal-core`
+// native shared library shipped with the GitHub release; it has no Maven coordinates.
+// Versions 1.0.1 and 2.0.0 remain on Maven Central and are not withdrawn by this.

@@ -71,16 +71,63 @@ kotlin {
     applyDefaultHierarchyTemplate()
 
     sourceSets {
-        commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
-            // api, not implementation: NaHalNavigator()'s signature reaches into :core (and
-            // through it to haldish), so a consumer of the published nahal-ui cannot compile
-            // against it otherwise. Matches the api() chain documented in CLAUDE.md.
-            api(project(":core"))
+        // :core publishes nothing (see core/build.gradle.kts), so a `project(":core")` dependency
+        // would leave an unresolvable `com.helpchoice.nahal:nahal-core` coordinate in nahal-ui's
+        // POM — Gradle references project dependencies from a publication, it does not inline
+        // them. Compiling core's sources here instead makes the published artifact self-contained,
+        // and mirrors what the apps already get from static linking. Deps travel with the sources:
+        // everything core declared is re-declared below.
+        //
+        // Excluded per platform: the standalone @JsExport / @CName facades (JsCoreNavigator,
+        // WasmCoreClient, NativeCoreApi). They exist to expose core to non-Kotlin callers of the
+        // `nahal-core` shared library, which :core still builds for the GitHub release; inside a
+        // UI artifact they are dead weight, and @CName would export C symbols from NahalUI.framework.
+        val coreSrc = "../core/src"
+
+        // Android runs the JVM platform support verbatim — the intermediate source set core used
+        // to share CorePlatformSupport.kt between them has to exist here too.
+        val jvmAndroidMain by creating { dependsOn(commonMain.get()) }
+        jvmMain.get().dependsOn(jvmAndroidMain)
+        androidMain.get().dependsOn(jvmAndroidMain)
+
+        jvmAndroidMain.kotlin.srcDir("$coreSrc/jvmAndroidMain/kotlin")
+        jvmAndroidMain.dependencies {
+            implementation(libs.kaml)
+        }
+
+        commonMain {
+            kotlin.srcDir("$coreSrc/commonMain/kotlin")
+            dependencies {
+                implementation(compose.runtime)
+                implementation(compose.foundation)
+                implementation(compose.material3)
+                implementation(compose.ui)
+                implementation(compose.components.resources)
+                // api, not implementation: NaHalNavigator()'s signature reaches into the core
+                // types and through them to haldish, so a consumer of the published nahal-ui
+                // cannot compile against it otherwise.
+                api(libs.haldish)
+                implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.kotlinx.serialization.json)
+            }
+        }
+
+        jsMain {
+            kotlin.srcDir("$coreSrc/jsMain/kotlin")
+            kotlin.exclude("**/JsCoreNavigator.kt")
+            dependencies {
+                implementation(libs.kaml)
+            }
+        }
+
+        wasmJsMain {
+            kotlin.srcDir("$coreSrc/wasmJsMain/kotlin")
+            kotlin.exclude("**/WasmCoreClient.kt")
+        }
+
+        nativeMain {
+            kotlin.srcDir("$coreSrc/nativeMain/kotlin")
+            kotlin.exclude("**/NativeCoreApi.kt")
         }
 
         jvmMain.dependencies {

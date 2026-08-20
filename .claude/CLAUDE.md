@@ -4,8 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Kotlin Multiplatform project. Dependency direction: `:ui` → `:core` → `haldish` (each module
-exposes its dependency via `api()`).
+Kotlin Multiplatform project. Dependency direction: `:ui` → `:core` → `haldish`.
+
+**`:core` is not published, and is not a dependency of the published artifacts — its sources are
+compiled into them.** A `project(":core")` dependency survives publication as a *coordinate* in the
+POM and Gradle module metadata, not as inlined content (application packaging is the opposite: the
+jpackage image, the APK and the static `NahalUI.framework` all link core in). With `nahal-core`
+gone from Maven Central, that coordinate would be unresolvable, so `:ui` adds core's source
+directories to its own source sets (`ui/build.gradle.kts`, minus the `@JsExport`/`@CName` facades)
+and `:testkit` compiles in the single class it uses, `DocLinkResolver`. Core's dependencies are
+re-declared in both. The `:core` module itself stays — it builds the `nahal-core` native shared
+library and header shipped with the GitHub release, and owns the tests for that code.
+
+Practical consequence: **editing `core/src` changes `:ui` and `:testkit`.** They compile those
+files; there is no artifact boundary to shield them.
 
 **haldish is no longer a module of this build.** It lives in its own repository,
 `../HALDiSh_KMP`, and is consumed here as the published artifact
@@ -15,14 +27,13 @@ there, not here. Because Maven Central currently serves only 1.0.1, `settings.gr
 `../HALDiSh_KMP` to make the current 2.0.0 resolvable.
 
 **The example plugins are no longer modules of this build either.** They live in
-`../HALDiSh_Plugins` and publish as `com.helpchoice.nahal:haldish-plugin-<name>`. `:testkit` is
-the only consumer here (`libs.haldish.plugin.curie`, for CURIE expansion), also via `mavenLocal()`.
-Note the bootstrap order across the three repositories: `../HALDiSh_KMP` → `:core`/`:ui` here →
-`../HALDiSh_Plugins` → `:testkit` here.
+`../HALDiSh_Plugins` and publish as `com.helpchoice.nahal:haldish-plugin-<name>`. Nothing in this
+build consumes them, so the bootstrap order across the three repositories is simply
+`../HALDiSh_KMP` → this build → `../HALDiSh_Plugins`.
 
 | Module | Role | Per-module docs |
 |---|---|---|
-| `:core` | Navigation layer on haldish — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, platform facades. No app entry point. | [core/CLAUDE.md](../core/CLAUDE.md) |
+| `:core` | Navigation layer on haldish — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, platform facades. No app entry point, not published; its sources compile into `:ui` and `:testkit`. | [core/CLAUDE.md](../core/CLAUDE.md) |
 | `:ui` | Compose Multiplatform desktop/browser/mobile GUI HAL navigator. Library only — including its `androidTarget()` variant. | [ui/CLAUDE.md](../ui/CLAUDE.md) |
 | `:androidApp` | The installable Android app: an Activity hosting `NaHalNavigator()`. Not published to Maven Central. | — |
 | `iosApp/` | Xcode host for the iOS app. Links `NahalUI.framework`, which `:ui` produces. Not a Gradle module. | — |
@@ -64,11 +75,12 @@ haldish's own loader. To run the UI with the example plugins chained:
 
 ## Publishing
 
-Both primary modules publish to Maven Central via `com.vanniktech.maven.publish`. Coordinates:
-- `com.helpchoice.nahal:nahal-core`
-- `com.helpchoice.nahal:nahal-ui`
+Published to Maven Central via `com.vanniktech.maven.publish`:
+- `com.helpchoice.nahal:nahal-ui` (`:ui`)
+- `com.helpchoice.nahal:haldish-testkit` / `haldish-testkit-groovy` (`:testkit` / `:testkit-groovy`)
 
-plus `:testkit` / `:testkit-groovy` as `haldish-testkit` / `haldish-testkit-groovy`.
+`:core` **does not publish** — see Architecture above. `nahal-core` 1.0.1 and 2.0.0 remain on
+Maven Central from before that change; nothing new is released under that coordinate.
 
 (`com.helpchoice.nahal:haldish` is published from `../HALDiSh_KMP`, and the
 `haldish-plugin-<name>` artifacts from `../HALDiSh_Plugins`.)

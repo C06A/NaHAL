@@ -55,7 +55,7 @@ class RootIntegrationSpec extends Specification {
         json.send('GET', 'doc:scalars', [name: name]).asText().trim()
     }
 
-    def "follows link responses including SafeCURIE hrefs"() {
+    def "follows link responses"() {
         given:
         def links = root.GET('links').asHal()
 
@@ -64,12 +64,6 @@ class RootIntegrationSpec extends Specification {
         links.GET('complete').isSuccess()
         links.GET('deprecated').isSuccess()
         links.GET('doc:array').isSuccess()
-
-        and: 'SafeCURIE hrefs expand client-side (external targets — not sent)'
-        def curies = links.GET('doc:curies').asHal()
-        curies.expandedHref('doc:spec') == 'https://stateless.group/hal_specification.html'
-        curies.expandedHref('doc:item') == 'https://api.example.com/v2/items/42'
-        curies.expandedHref('doc:collection') == 'https://api.example.com/v2/items'
     }
 
     def "accesses embedded resources and their links"() {

@@ -89,10 +89,9 @@ class HalResource internal constructor(
         dispatch("", link, method, options)
 
     /**
-     * The absolute URL the link [rel] would be sent to — after link modifiers (CURIE / SafeCURIE
-     * expansion), URI-template expansion with [SendOptions.vars], and base-URL resolution — without
-     * sending anything. Useful for asserting SafeCURIE hrefs that point at external targets. Null
-     * when no such link exists.
+     * The absolute URL the link [rel] would be sent to — after link modifiers, URI-template
+     * expansion with [SendOptions.vars], and base-URL resolution — without sending anything.
+     * Useful for asserting hrefs that point at external targets. Null when no such link exists.
      */
     @JvmOverloads
     fun expandedHref(rel: String, options: SendOptions = SendOptions()): String? {
@@ -105,7 +104,7 @@ class HalResource internal constructor(
 
     /** Applies link modifiers + template expansion + base-URL resolution, returning (effLink, url). */
     private fun resolve(rel: String, link: HalLink, options: SendOptions): Pair<HalLink, String> {
-        // Link-level modifiers (e.g. CURIE) run while we still hold the raw href.
+        // Link-level modifiers run while we still hold the raw href.
         val holdingDocument = HalDocument(links = links)
         val effLink = context.linkModifiers.fold(link) { l, m -> m.modify(l, rel, holdingDocument, context) }
         val href = effLink.href

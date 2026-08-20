@@ -13,7 +13,7 @@ import io.ktor.http.headersOf
 /**
  * A scripted HAL API served by Ktor's [MockEngine], so tests can express a sequence of HTTP calls
  * without a live server. Endpoints cover the wrapper's features: templated links, arbitrary
- * methods, CURIE expansion, multipart upload, and a `401`-guarded resource for session refresh.
+ * methods, multipart upload, and a `401`-guarded resource for session refresh.
  */
 object MockApi {
 
@@ -31,13 +31,10 @@ object MockApi {
           "_links": {
             "self":       { "href": "http://api/" },
             "orders":     { "href": "http://api/orders{?page}", "templated": true },
-            "widget":     { "href": "ord:widget" },
-            "safe":       { "href": "[ord:widget]" },
             "uploads":    { "href": "http://api/uploads" },
             "echo":       { "href": "http://api/echo" },
             "secure":     { "href": "http://api/secure" },
             "doc:orders": { "href": "http://api/orders" },
-            "CURIE":      [ { "name": "ord", "href": "http://api/orders/" } ],
             "curies":     [ { "name": "doc", "href": "http://docs/{rel}", "templated": true } ]
           },
           "_embedded": {
@@ -65,10 +62,6 @@ object MockApi {
                 method == "GET" && path == "/orders" ->
                     respond("""{"page": ${page ?: "null"}, "_links": {"self": {"href": "http://api/orders?page=$page"}}}""",
                         HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, HAL))
-
-                method == "GET" && path == "/orders/widget" ->
-                    respond("""{"kind": "widget"}""", HttpStatusCode.OK,
-                        headersOf(HttpHeaders.ContentType, HAL))
 
                 // Echoes the request body bytes back — verifies binary/text/bytes file bodies.
                 method == "POST" && path == "/echo" -> {

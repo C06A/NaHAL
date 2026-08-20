@@ -11,7 +11,7 @@ import com.helpchoice.nahal.haldish.http.HalHttpClient
 class HalContext(
     val client: HalHttpClient,
     val session: Session = NoSession,
-    val linkModifiers: List<LinkModifier> = listOf(CurieModifier()),
+    val linkModifiers: List<LinkModifier> = emptyList(),
     val requestModifiers: List<RequestModifier> = listOf(ContentTypeModifier()),
     val baseUrl: String = "",
 ) {

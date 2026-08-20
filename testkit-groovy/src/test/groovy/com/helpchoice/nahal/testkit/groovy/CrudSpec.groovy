@@ -1,9 +1,11 @@
 package com.helpchoice.nahal.testkit.groovy
 
+import com.helpchoice.nahal.haldish.http.HalRequestBody
 import com.helpchoice.nahal.testkit.Body
 import com.helpchoice.nahal.testkit.MapCredentialsProvider
 import com.helpchoice.nahal.testkit.MockApi
 import com.helpchoice.nahal.testkit.NoSession
+import com.helpchoice.nahal.testkit.SendOptions
 import com.helpchoice.nahal.testkit.SimpleCredentials
 import com.helpchoice.nahal.testkit.TokenSession
 import spock.lang.Specification
@@ -65,35 +67,13 @@ class CrudSpec extends Specification {
         report.asText() == 'reported'
     }
 
-    def "expands a CURIE href"() {
-        given:
-        def root = root()
-
-        when:
-        def widget = root.GET('widget').asHal()
-
-        then:
-        widget.kind == 'widget'
-    }
-
-    def "expands a SafeCURIE href"() {
-        given:
-        def root = root()
-
-        when:
-        def widget = root.GET('safe').asHal()
-
-        then:
-        widget.kind == 'widget'
-    }
-
     def "expands a href without sending"() {
         given:
         def root = root()
 
         expect:
-        root.expandedHref('safe') == 'http://api/orders/widget'
-        root.expandedHref('widget') == 'http://api/orders/widget'
+        root.expandedHref('orders', new SendOptions(0, null, [page: 2], [:], [:], HalRequestBody.None.INSTANCE)) ==
+            'http://api/orders?page=2'
     }
 
     def "posts a binary file body"() {

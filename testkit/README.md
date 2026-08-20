@@ -19,9 +19,9 @@ It wraps `:haldish` (the HAL client) and adds:
   a `401`, either **refresh and retry once** or return the `401` **as-is** (`refreshOn401`).
 - **Credentials** — `CredentialsProvider.forUser(userId)`. `MapCredentialsProvider` (inline, for
   tests) and `FileCredentialsProvider` (reads the `HALDISH_CONFIG` JSON/YAML file, keyed by user).
-- **Modifiers** — `CurieModifier` (expands both a bare CURIE `prefix:ref` **and a SafeCURIE**
-  `[prefix:ref]` against the `CURIE` collection) and `ContentTypeModifier` (sets `Content-Type`
-  from the link's declared type).
+- **Modifiers** — `LinkModifier` (rewrites the selected link before its href is expanded; no
+  built-in implementations) and `ContentTypeModifier` (sets `Content-Type` from the link's
+  declared type).
 - **Documentation** — `HalResource.doc(rel)` / `openDoc(rel)` resolve a rel's documentation link
   from the HAL-spec `curies` (reusing `:core`'s `DocLinkResolver`).
 - **Request bodies** — `Body` builds a `SendOptions.body`: `Body.text(...)`, `Body.json(...)`,

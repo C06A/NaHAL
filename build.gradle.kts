@@ -14,7 +14,7 @@ plugins {
 
 allprojects {
     group   = "com.helpchoice.nahal"
-    version = "2.0.1"
+    version = "2.1.0"
 }
 
 // ── Maven Central bundle slimming ─────────────────────────────────────────────

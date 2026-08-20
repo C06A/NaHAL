@@ -340,7 +340,7 @@ jobs:
             echo
             echo "Desktop installers, the browser UI bundle, and the \`nahal-core\` native shared"
             echo "libraries. JVM/JS/native klibs for Gradle and Maven consumers are on Maven Central"
-            echo "as \`com.helpchoice.nahal:nahal-core\` and \`com.helpchoice.nahal:nahal-ui\`."
+            echo "as \`com.helpchoice.nahal:nahal-ui\`."
             echo
             echo "### Assets"
             echo

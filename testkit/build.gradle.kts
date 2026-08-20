@@ -6,18 +6,30 @@ plugins {
     alias(libs.plugins.vanniktech.publish)
 }
 
+// :core publishes nothing, so depending on it as a project would leave an unresolvable
+// `com.helpchoice.nahal:nahal-core` coordinate in haldish-testkit's POM. Only one class is used
+// from it — the `curies` documentation resolver — so it is compiled in directly. Copied rather
+// than srcDir'd on the whole package: the rest of core's commonMain needs `expect` platform
+// support this JVM-only module has no actuals for.
+val copyCoreDocLinkResolver by tasks.registering(Copy::class) {
+    description = "Copies :core's DocLinkResolver into this module's sources — :core is not published."
+    from("../core/src/commonMain/kotlin/com/helpchoice/nahal/core/DocLinkResolver.kt")
+    into(layout.buildDirectory.dir("generated/core/com/helpchoice/nahal/core"))
+}
+
 kotlin {
     // Match the JDK the other modules compile with (they set no toolchain, so they emit
     // class-file version 65 / Java 21); the test JVM must be able to load them.
     jvmToolchain(21)
+
+    sourceSets["main"].kotlin.srcDir(
+        files(layout.buildDirectory.dir("generated/core")).builtBy(copyCoreDocLinkResolver)
+    )
 }
 
 dependencies {
     // haldish is the wrapped client; re-exported so callers see HalLink/HalHttpResponse etc.
     api(libs.haldish)
-    // Reuse the CURIE link-expansion logic and the curies documentation resolver.
-    implementation(libs.haldish.plugin.curie)
-    implementation(project(":core"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kaml)                              // YAML credential config files
@@ -83,7 +95,7 @@ mavenPublishing {
     pom {
         name        = "HALDiSh TestKit"
         description = "Readable HAL test wrapper over HALDiSh — express tests as a sequence of " +
-            "HTTP calls, with sessions, CURIE, and body coercion (Kotlin core)"
+            "HTTP calls, with sessions and body coercion (Kotlin core)"
         url         = "https://github.com/C06A/NaHAL"
         licenses {
             license {

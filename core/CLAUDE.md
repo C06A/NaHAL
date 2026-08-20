@@ -4,6 +4,20 @@ Higher-level navigation layer built on top of haldish (`libs.haldish`, developed
 `../HALDiSh_KMP` repository — it is no longer a module of this build). Provides `HalNavigator`,
 `LinkSelector`, and platform facades. Library module — no application entry point.
 
+**Not published, and not a dependency of the published artifacts.** `:ui` and `:testkit` add this
+module's source directories to their own source sets rather than depending on `project(":core")`,
+because a project dependency publishes as an unresolvable coordinate once `nahal-core` is gone
+from Maven Central. So **editing anything here recompiles `:ui` and `:testkit`** — run their
+builds, not just `:core:jvmTest`. Two consequences for code in this module:
+
+- Anything added to `commonMain` (or a platform source set) lands inside `nahal-ui`. New
+  dependencies must be re-declared in `ui/build.gradle.kts`, which is where core's own
+  `haldish`/coroutines/serialization/kaml declarations now live in duplicate.
+- The `@JsExport` / `@CName` facades (`JsCoreNavigator`, `WasmCoreClient`, `NativeCoreApi`) are
+  **excluded** from that absorption by name. They exist for non-Kotlin callers of the `nahal-core`
+  shared library — the artifact this module still builds for the GitHub release. Renaming one
+  means updating the exclude in `ui/build.gradle.kts`.
+
 ## Build & Test Commands
 
 ```bash

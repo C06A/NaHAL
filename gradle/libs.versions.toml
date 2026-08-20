@@ -6,8 +6,6 @@ kotlinx-coroutines    = "1.10.1"
 kotlinx-serialization = "1.8.1"
 # The HAL client, developed in its own repository (../HALDiSh_KMP).
 haldish               = "2.0.0"
-# The example plugins, developed in their own repository (../HALDiSh_Plugins).
-haldish-plugins       = "2.0.0"
 vanniktech-publish    = "0.35.0"
 # Android. haldish itself publishes no android variant; the android compilations resolve its
 # `jvm` one through Kotlin's androidJvm-accepts-jvm compatibility rule.
@@ -24,23 +22,22 @@ spock                 = "2.3-groovy-4.0"
 junit                 = "5.10.2"
 
 [libraries]
-haldish                           = { module = "com.helpchoice.nahal:haldish",              version.ref = "haldish" }
-haldish-plugin-curie              = { module = "com.helpchoice.nahal:haldish-plugin-curie", version.ref = "haldish-plugins" }
-ktor-client-core                = { module = "io.ktor:ktor-client-core",                  version.ref = "ktor" }
-ktor-client-cio                   = { module = "io.ktor:ktor-client-cio",                   version.ref = "ktor" }
-ktor-client-js                    = { module = "io.ktor:ktor-client-js",                    version.ref = "ktor" }
-ktor-client-curl                  = { module = "io.ktor:ktor-client-curl",                  version.ref = "ktor" }
-ktor-client-darwin                = { module = "io.ktor:ktor-client-darwin",                version.ref = "ktor" }
-ktor-client-winhttp               = { module = "io.ktor:ktor-client-winhttp",               version.ref = "ktor" }
-ktor-client-content-negotiation   = { module = "io.ktor:ktor-client-content-negotiation",   version.ref = "ktor" }
-ktor-serialization-kotlinx-json   = { module = "io.ktor:ktor-serialization-kotlinx-json",   version.ref = "ktor" }
-kotlinx-coroutines-core           = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
-kotlinx-serialization-json        = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
-xmlutil-core                      = { module = "io.github.pdvrieze.xmlutil:core",                   version.ref = "xmlutil" }
-xmlutil-serialization             = { module = "io.github.pdvrieze.xmlutil:serialization",          version.ref = "xmlutil" }
-kaml                              = { module = "com.charleskorn.kaml:kaml",                         version.ref = "kaml"    }
-ktor-client-mock                  = { module = "io.ktor:ktor-client-mock",                          version.ref = "ktor"    }
-kotlinx-coroutines-test           = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test",      version.ref = "kotlinx-coroutines" }
+haldish                           = { module = "com.helpchoice.nahal:haldish",                        version.ref = "haldish" }
+ktor-client-core                  = { module = "io.ktor:ktor-client-core",                            version.ref = "ktor" }
+ktor-client-cio                   = { module = "io.ktor:ktor-client-cio",                             version.ref = "ktor" }
+ktor-client-js                    = { module = "io.ktor:ktor-client-js",                              version.ref = "ktor" }
+ktor-client-curl                  = { module = "io.ktor:ktor-client-curl",                            version.ref = "ktor" }
+ktor-client-darwin                = { module = "io.ktor:ktor-client-darwin",                          version.ref = "ktor" }
+ktor-client-winhttp               = { module = "io.ktor:ktor-client-winhttp",                         version.ref = "ktor" }
+ktor-client-content-negotiation   = { module = "io.ktor:ktor-client-content-negotiation",             version.ref = "ktor" }
+ktor-serialization-kotlinx-json   = { module = "io.ktor:ktor-serialization-kotlinx-json",             version.ref = "ktor" }
+kotlinx-coroutines-core           = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core",       version.ref = "kotlinx-coroutines" }
+kotlinx-serialization-json        = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json",    version.ref = "kotlinx-serialization" }
+xmlutil-core                      = { module = "io.github.pdvrieze.xmlutil:core",                     version.ref = "xmlutil" }
+xmlutil-serialization             = { module = "io.github.pdvrieze.xmlutil:serialization",            version.ref = "xmlutil" }
+kaml                              = { module = "com.charleskorn.kaml:kaml",                           version.ref = "kaml"    }
+ktor-client-mock                  = { module = "io.ktor:ktor-client-mock",                            version.ref = "ktor"    }
+kotlinx-coroutines-test           = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test",       version.ref = "kotlinx-coroutines" }
 kotlinx-browser                   = { module = "org.jetbrains.kotlinx:kotlinx-browser",               version.ref = "kotlinx-browser"    }
 androidx-activity-compose         = { module = "androidx.activity:activity-compose",                  version.ref = "androidx-activity"  }
 groovy                            = { module = "org.apache.groovy:groovy",                            version.ref = "groovy"  }
@@ -48,12 +45,12 @@ spock-core                        = { module = "org.spockframework:spock-core", 
 junit-jupiter                     = { module = "org.junit.jupiter:junit-jupiter",                     version.ref = "junit"   }
 
 [plugins]
-kotlin-multiplatform  = { id = "org.jetbrains.kotlin.multiplatform",          version.ref = "kotlin" }
+kotlin-multiplatform  = { id = "org.jetbrains.kotlin.multiplatform",           version.ref = "kotlin" }
 kotlin-jvm            = { id = "org.jetbrains.kotlin.jvm",                     version.ref = "kotlin" }
 kotlin-android        = { id = "org.jetbrains.kotlin.android",                 version.ref = "kotlin" }
-kotlin-serialization  = { id = "org.jetbrains.kotlin.plugin.serialization",   version.ref = "kotlin" }
-compose-multiplatform = { id = "org.jetbrains.compose",                       version.ref = "compose-multiplatform" }
-compose-compiler      = { id = "org.jetbrains.kotlin.plugin.compose",         version.ref = "kotlin" }
+kotlin-serialization  = { id = "org.jetbrains.kotlin.plugin.serialization",    version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose",                        version.ref = "compose-multiplatform" }
+compose-compiler      = { id = "org.jetbrains.kotlin.plugin.compose",          version.ref = "kotlin" }
 vanniktech-publish    = { id = "com.vanniktech.maven.publish",                 version.ref = "vanniktech-publish" }
 kover                 = { id = "org.jetbrains.kotlinx.kover",                  version.ref = "kover" }
 android-application   = { id = "com.android.application",                      version.ref = "agp" }

@@ -23,7 +23,8 @@ import kotlin.test.assertTrue
  * `@BeforeAll` runs the seeding sequence ([IntegrationSupport.seedRoot]); the tests then navigate
  * the seeded resources. Assertions track the demo fixtures' contract: the root links to
  * `json-samples`, `links`, `templated`, and `embedded`; `/json-samples` exposes each JSON value
- * shape; `/links/curies` carries SafeCURIE hrefs; `/complex-hal` carries embedded collections.
+ * shape; `/links/curies` declares the HAL-spec `curies`; `/complex-hal` carries embedded
+ * collections.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RootIntegrationTest {
@@ -65,10 +66,10 @@ class RootIntegrationTest {
     private fun scalar(json: HalResource, name: String): String =
         json.send("GET", "doc:scalars", SendOptions(name = name)).asText().trim()
 
-    // ── link responses, including SafeCURIE href handling ────────────────────────────────────
+    // ── link responses ───────────────────────────────────────────────────────────────────────
 
     @Test
-    fun followsLinksIncludingSafeCurie() {
+    fun followsLinks() {
         val links = root.send("GET", "links").asHal()
 
         // ordinary internal links resolve to real resources
@@ -76,13 +77,6 @@ class RootIntegrationTest {
         assertTrue(links.send("GET", "complete").isSuccess)
         assertTrue(links.send("GET", "deprecated").isSuccess)
         assertTrue(links.send("GET", "doc:array").isSuccess)
-
-        // SafeCURIE hrefs point at external targets and MockingHAL serves them literally, so the
-        // wrapper's client-side expansion is what we assert (not the response).
-        val curies = links.send("GET", "doc:curies").asHal()
-        assertEquals("https://stateless.group/hal_specification.html", curies.expandedHref("doc:spec"))
-        assertEquals("https://api.example.com/v2/items/42", curies.expandedHref("doc:item"))
-        assertEquals("https://api.example.com/v2/items", curies.expandedHref("doc:collection"))
     }
 
     // ── embedded resources and their links ───────────────────────────────────────────────────
