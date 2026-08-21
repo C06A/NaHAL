@@ -60,7 +60,7 @@ class HalNavigator(
      * Executes a caller-assembled [RequestSpec]: resolves the target from its [RequestSpec.path]
      * (running `preLink` so plugins can create/modify the link), expands the URI template,
      * sends (`preRequest`), and parses a HAL response. Does no URL manipulation of its own —
-     * relative hrefs are resolved only if a `preLink` plugin (e.g. base-url-rewriter) does so;
+     * relative hrefs are resolved only if a `preLink` plugin rewrites them;
      * with the default no-op plugin, URLs are expected to be absolute.
      */
     /**

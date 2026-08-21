@@ -58,7 +58,7 @@ class HalNavigatorSendTest {
         assertEquals("https://api.example.com/root", response.url)
     }
 
-    // ── followed link resolved through preLink (base-url-rewriter style) ─────
+    // ── followed link resolved through preLink (base-URL rewriting) ──────────
 
     @Test fun sendResolvesRelativeLinkViaPreLinkPlugin() = runTest {
         val rewriter = object : HaldishPlugin {

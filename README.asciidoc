@@ -12,7 +12,7 @@ Point it at a HAL endpoint and walk the API by following links, expanding URI te
 *The HAL client library and the example plugins are not part of this repository.*
 
 * https://github.com/C06A/HALDiSh_KMP[C06A/HALDiSh_KMP] — the *Haldish* HAL client (parsing, URI templates, HTTP, the plugin contract). Published as `com.helpchoice.nahal:haldish`. Change the HAL client there, not here.
-* https://github.com/C06A/HALDiSh_Plugins[C06A/HALDiSh_Plugins] — the example plugins, published as `com.helpchoice.nahal:haldish-plugin-<name>`. They also own the tasks that launch NaHAL with plugins active.
+* https://github.com/C06A/HALDiSh_Plugins[C06A/HALDiSh_Plugins] — the example plugins. Nothing here depends on them; that repository also owns the tasks that launch NaHAL with plugins active.
 
 This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testkit-groovy`.
 ====
@@ -23,8 +23,8 @@ This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testk
 | Module | Artifact | Role
 
 | `:core`
-| `com.helpchoice.nahal:nahal-core`
-| Navigation layer over Haldish — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, config-driven plugin loading, and JS / Wasm / C facades. No application entry point.
+| *not published* — its sources compile into `nahal-ui` and `haldish-testkit`
+| Navigation layer over Haldish — `HalNavigator`, `LinkSelector`, `DocLinkResolver`, config-driven plugin loading, and JS / Wasm / C facades. No application entry point. Still builds the `nahal-core` shared library and C header shipped with the GitHub release.
 
 | `:ui`
 | `com.helpchoice.nahal:nahal-ui`
@@ -189,24 +189,22 @@ plugin sitting on the classpath or in a drop-in directory stays inert on its own
 | Chain several by pointing at a chain artifact. Note the native C ABI carries no properties.
 |===
 
-To run the UI with the example plugins chained (CURIE expansion → base-URL rewriting → request logging):
-
-[source,bash]
-----
-(cd ../HALDiSh_Plugins && ./gradlew :chain:jvmRun)          # desktop, JVM
-(cd ../HALDiSh_Plugins && ./gradlew :chain:runMacosX64App)  # desktop, native macOS
-----
+Running the UI with plugins active is driven from the plugin repository, which owns those tasks —
+see https://github.com/C06A/HALDiSh_Plugins[C06A/HALDiSh_Plugins].
 
 The plugin contract itself — hooks, lifecycle, the C ABI, packaging — is specified in
 link:PLUGIN_CONTRACT.md[PLUGIN_CONTRACT.md].
 
-== Using `nahal-core` as a library
+== Using the navigation layer as a library
+
+`nahal-core` is no longer published. Its API — `HalNavigator`, `LinkSelector`, `DocLinkResolver` —
+is compiled into `nahal-ui`, so one dependency gets both the navigator and the GUI:
 
 [source,kotlin]
 ----
 // build.gradle.kts
 dependencies {
-    implementation("com.helpchoice.nahal:nahal-core:<version>")
+    implementation("com.helpchoice.nahal:nahal-ui:<version>")
 }
 ----
 
@@ -236,7 +234,8 @@ outward through enclosing resources.
 
 === JavaScript / Node.js
 
-The `:core` JS target publishes a library with an exported navigator facade:
+The `:core` JS target builds a library with an exported navigator facade. It is not on Maven
+Central — build it from this repository (the facade is deliberately excluded from `nahal-ui`):
 
 [source,bash]
 ----
@@ -289,11 +288,10 @@ it published locally first — `settings.gradle.kts` adds `mavenLocal()` for exa
 ----
 (cd ../HALDiSh_KMP && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
 ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false
-(cd ../HALDiSh_Plugins && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
 ----
 
-That is also the bootstrap order between the three repositories: Haldish → this build → plugins
-(`:testkit` here consumes the CURIE plugin).
+Nothing here consumes a plugin, so that is the whole bootstrap: Haldish → this build. The plugin
+repository builds after both, and only if you want it.
 
 == Release artifacts
 

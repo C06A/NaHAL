@@ -489,7 +489,7 @@ With no config source, `HalNavigator` takes one of two paths — **no exceptions
 | Situation | Result |
 |---|---|
 | No config, no `HALDISH_PLUGIN_PATH` | No-op plugin. Nothing runs — not a plugin on the classpath, not a jar in a drop-in directory. Activation requires a config that names it. |
-| No config, `HALDISH_PLUGIN_PATH` set | `HalNavigator` passes no override, so haldish's own loader takes the **single** artifact that variable points at: a JAR on the JVM, a `.dylib` / `.so` / `.dll` on native. Chain several plugins by pointing it at a chain artifact (`haldish-plugin-chain`'s `libhaldish_plugin.*`). Note the C ABI carries only `platform` and `version` to `initialize()`, so a native artifact cannot be configured from the config file — bake its settings in when you build it. |
+| No config, `HALDISH_PLUGIN_PATH` set | `HalNavigator` passes no override, so haldish's own loader takes the **single** artifact that variable points at: a JAR on the JVM, a `.dylib` / `.so` / `.dll` on native. Chain several plugins by pointing it at an artifact that combines them. Note the C ABI carries only `platform` and `version` to `initialize()`, so a native artifact cannot be configured from the config file — bake its settings in when you build it. |
 
 ### JVM usage
 
@@ -552,85 +552,9 @@ CorePluginRegistry.register("com.example.ApiKeyPlugin", ApiKeyPlugin())
 
 ---
 
-## Ready-made example plugins
+## Example plugins
 
-The following plugins are available as separate Maven artifacts under
-`com.helpchoice.nahal`. Each is an independent Kotlin Multiplatform module that can be
-used as-is or as a starting point for your own plugin.
-
-### `haldish-plugin-api-key` — API Key injection *(KMP)*
-
-Adds a configurable header to every request.  Defaults to `X-Api-Key`; can be changed
-to `Authorization` or any other header name.
-
-```kotlin
-HalHttpClient(pluginOverride = ApiKeyPlugin(apiKey = System.getenv("MY_KEY") ?: ""))
-```
-
-### `haldish-plugin-bearer-token` — Bearer token auth *(per-platform)*
-
-Injects `Authorization: Bearer <token>` into every request.  This module is a
-**per-platform authoring example**: each platform source set (`jvmMain`, `jsMain`,
-`appleMain`, `linuxMain`, `mingwMain`, `wasmJsMain`) carries its own self-contained
-class — copy the relevant file as a template when your plugin needs genuinely
-platform-specific logic (e.g. iOS Keychain, Windows Credential Manager).
-
-```kotlin
-// JVM — programmatic
-HalHttpClient(pluginOverride = BearerTokenPlugin(token = myToken))
-
-// JVM — ServiceLoader: subclass and register in META-INF/services
-class MyBearerPlugin : BearerTokenPlugin(token = System.getenv("TOKEN") ?: "")
-```
-
-### `haldish-plugin-base-url-rewriter` — Environment URL rewriting *(per-platform)*
-
-Replaces the scheme + host of every outgoing URL with a configurable base, preserving
-the path, query string, and fragment.  Useful for switching between production and
-staging environments without changing the HAL links stored in responses.
-
-```kotlin
-// Redirect all HAL follow-up links to a local dev server
-HalHttpClient(pluginOverride = BaseUrlRewriterPlugin("http://localhost:8080"))
-```
-
-Like `bearer-token`, this module is a per-platform authoring example.
-
-### `haldish-plugin-chain` — Plugin combinator *(KMP)*
-
-Chains multiple plugins into one.  Lifecycle hooks are applied in declaration order:
-`initialize` → each plugin left-to-right; `preRequest` → threaded through all plugins;
-`postResponse` → threaded through all plugins.
-
-```kotlin
-HalHttpClient(
-    pluginOverride = ChainPlugin(
-        BaseUrlRewriterPlugin("https://staging.example.com"),
-        BearerTokenPlugin(token = myToken),
-        LoggerPlugin(directory = "/tmp/hal-log"),   // logger last — sees final URL
-    )
-)
-```
-
-### `haldish-plugin-logger` — Request / response file logger *(KMP)*
-
-Writes every HTTP exchange as a named set of files under a configurable directory.
-The base name is `yyyyMMddTHHmmss_NNN` (local-time stamp + per-instance counter).
-
-| File | Content |
-|------|---------|
-| `<base>.curl` | Equivalent `curl` command |
-| `<base>.url` | Final URL sent (after any plugin rewrites) |
-| `<base>.code` | HTTP status code number only |
-| `<base>.status` | Status code + reason phrase, e.g. `200 (OK)` |
-| `<base>.headers` | Response headers, one `Name: value` per line |
-| `<base>.body` | Raw response body as received |
-| `<base>.<fmt>` | Pretty-printed body (`.json`, `.xml`, `.yaml`, `.html`, `.txt`, `.dat`) |
-
-```kotlin
-HalHttpClient(pluginOverride = LoggerPlugin(directory = "./hal-log"))
-```
-
-**Platform note:** file output works on JVM, Node.js, and native (Linux/macOS/Windows).
-On browser JS and WasmJS targets there is no writable sandbox filesystem; the logger
-falls back to `console.log` output.
+Ready-made plugins — usable as-is, or as templates for your own — live in their own
+repository, [C06A/HALDiSh_Plugins](https://github.com/C06A/HALDiSh_Plugins). Nothing in
+this build depends on them; see that repository for what it offers, how each one is
+configured, and how to run NaHAL with them active.

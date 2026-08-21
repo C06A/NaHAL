@@ -27,9 +27,9 @@ there, not here. Because Maven Central currently serves only 1.0.1, `settings.gr
 `../HALDiSh_KMP` to make the current 2.0.0 resolvable.
 
 **The example plugins are no longer modules of this build either.** They live in
-`../HALDiSh_Plugins` and publish as `com.helpchoice.nahal:haldish-plugin-<name>`. Nothing in this
-build consumes them, so the bootstrap order across the three repositories is simply
-`../HALDiSh_KMP` → this build → `../HALDiSh_Plugins`.
+`../HALDiSh_Plugins`, which this build neither consumes nor knows the contents of — what plugins
+exist, what they are called and how they are published are that repository's business. Bootstrap
+order is therefore just `../HALDiSh_KMP` → this build; the plugin repository builds after both.
 
 | Module | Role | Per-module docs |
 |---|---|---|
@@ -69,9 +69,9 @@ Per-module build/test/run commands live in each module's `CLAUDE.md` (linked abo
 `HALDISH_CONFIG` (order + per-plugin properties) over classes the runtime can already resolve —
 the JVM drop-in directory `$NAHAL_PLUGINS_DIR`, or `CorePluginRegistry` registrations compiled into
 a native binary. Sole exception: `HALDISH_PLUGIN_PATH` with no config loads that one artifact via
-haldish's own loader. To run the UI with the example plugins chained:
-`(cd ../HALDiSh_Plugins && ./gradlew :chain:jvmRun)` — see "Plugins in the app" in
-[ui/CLAUDE.md](../ui/CLAUDE.md) and `PLUGIN_CONTRACT.md`.
+haldish's own loader. Running the UI with plugins active is driven from `../HALDiSh_Plugins`, which
+owns those tasks — see "Plugins in the app" in [ui/CLAUDE.md](../ui/CLAUDE.md) and
+`PLUGIN_CONTRACT.md`.
 
 ## Publishing
 
@@ -82,7 +82,7 @@ Published to Maven Central via `com.vanniktech.maven.publish`:
 `:core` **does not publish** — see Architecture above. `nahal-core` 1.0.1 and 2.0.0 remain on
 Maven Central from before that change; nothing new is released under that coordinate.
 
-(`com.helpchoice.nahal:haldish` is published from `../HALDiSh_KMP`, and the
-`haldish-plugin-<name>` artifacts from `../HALDiSh_Plugins`.)
+(`com.helpchoice.nahal:haldish` is published from `../HALDiSh_KMP`. The plugin repository publishes
+its own artifacts; nothing here references them.)
 
 Signing is required (`signAllPublications()`). Run `./gradlew publish` after configuring Sonatype credentials.

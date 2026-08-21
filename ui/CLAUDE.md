@@ -18,15 +18,12 @@ for tokens, copy and interaction specs.
 # Run the desktop GUI (JVM — opens a 1280×820 window)
 ./gradlew :ui:jvmRun
 
-# Run the desktop GUI with plugins active. The plugins live in ../HALDiSh_Plugins now; each module
-# there overrides its own `jvmRun` (puts that plugin's jvm artifact on the UI classpath + generates
-# its HALDISH_CONFIG) and resolves :ui as the published nahal-ui artifact. The chain module runs the
-# full curie → base-url-rewriter → logger chain; single plugins run from their own module:
-#   (cd ../HALDiSh_Plugins && ./gradlew :chain:jvmRun)
-#   (cd ../HALDiSh_Plugins && ./gradlew :base-url-rewriter:jvmRun)   # relative hrefs resolve
+# Running the desktop GUI with plugins active is not a task of this build. The plugin repository
+# (../HALDiSh_Plugins) overrides `jvmRun` per plugin module — it puts that plugin on the UI
+# classpath, generates its HALDISH_CONFIG, and resolves :ui as the published nahal-ui artifact.
+# See that repository for the commands.
 #
-# Those need the artifacts they consume in the local Maven repository first (Central has neither
-# 2.0.0 nor the plugins yet). Bootstrap order:
+# Those tasks need nahal-ui in the local Maven repository first (Central has no 2.0.0 yet):
 #   (cd ../HALDiSh_KMP && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
 #   ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false
 
@@ -61,8 +58,8 @@ the classpath or a jar in the drop-in directory stays inert on its own.
 | Runtime | How plugins get in | Ordering & properties |
 |---|---|---|
 | JVM (macOS / Linux / Windows) | Drop `*.jar` into `$NAHAL_PLUGINS_DIR` (default: `plugins/` in the working dir). `main()` puts them on a child `URLClassLoader` and installs it as the thread context classloader — that is *all* it does. | `HALDISH_CONFIG` (JSON or YAML, or the same-named system property) lists FQNs; file order = chain order; each entry's children reach `initialize()` as `config.properties`. |
-| Native macOS | No reflection → plugins must be compiled in and registered by FQN in `CorePluginRegistry` before the UI starts. That app is built in the plugin repo: `(cd ../HALDiSh_Plugins && ./gradlew :chain:runMacosX64App)` — see its `src/macosAppMain/.../Main.kt`. | `HALDISH_CONFIG` (JSON only) picks which registered plugins run, in what order. |
-| Any platform, single artifact | `HALDISH_PLUGIN_PATH` with **no** `HALDISH_CONFIG` → `:core` passes no override and haldish's own loader takes that one artifact (JAR on JVM, `.dylib` on native). Naming the artifact is the configuration. | Chain several by pointing at a chain artifact — `(cd ../HALDiSh_Plugins && ./gradlew :chain:linkHaldish_pluginReleaseSharedMacosX64)` builds `libhaldish_plugin.dylib` with curie → base-url-rewriter → logger baked in. Note the C ABI passes no properties. |
+| Native macOS | No reflection → plugins must be compiled in and registered by FQN in `CorePluginRegistry` before the UI starts. That app is built in the plugin repository, not here. | `HALDISH_CONFIG` (JSON only) picks which registered plugins run, in what order. |
+| Any platform, single artifact | `HALDISH_PLUGIN_PATH` with **no** `HALDISH_CONFIG` → `:core` passes no override and haldish's own loader takes that one artifact (JAR on JVM, `.dylib` on native). Naming the artifact is the configuration. | Chain several by pointing at an artifact that combines them. Note the C ABI passes no properties. |
 | JS / Wasm / iOS | Registered in app code; config comes from `window.__nahalConfig`. | Same order-and-properties rules. |
 
 Ordering deliberately lives in the config, never in file names — `main.kt` used to chain every jar
