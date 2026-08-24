@@ -5,10 +5,19 @@ Higher-level navigation layer built on top of haldish (`libs.haldish`, developed
 `LinkSelector`, and platform facades. Library module — no application entry point.
 
 **Not published, and not a dependency of the published artifacts.** `:ui` and `:testkit` add this
-module's source directories to their own source sets rather than depending on `project(":core")`,
-because a project dependency publishes as an unresolvable coordinate once `nahal-core` is gone
-from Maven Central. So **editing anything here recompiles `:ui` and `:testkit`** — run their
-builds, not just `:core:jvmTest`. Two consequences for code in this module:
+module's source directories to their own source sets rather than taking `project(":core")` as a
+source-set dependency, because that kind of dependency publishes as an unresolvable coordinate
+once `nahal-core` is gone from Maven Central. So **editing anything here recompiles `:ui` and
+`:testkit`** — run their builds, not just `:core:jvmTest`.
+
+They still reach those directories *through* `project(":core")`: the bottom of
+`core/build.gradle.kts` exposes `src` as the consumable configuration `coreSourcesElements`
+(`Usage=kotlin-sources-dir`), which each consumer resolves via its own `coreSources` configuration.
+Publication never looks at a standalone configuration, so nothing leaks into the POM — while
+Gradle, not a `../core/src` string, is what locates this module. Adding a new platform source set
+here means adding the matching `coreSrcDir("<name>/kotlin")` call in `ui/build.gradle.kts`.
+
+Two further consequences for code in this module:
 
 - Anything added to `commonMain` (or a platform source set) lands inside `nahal-ui`. New
   dependencies must be re-declared in `ui/build.gradle.kts`, which is where core's own

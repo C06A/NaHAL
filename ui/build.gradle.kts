@@ -9,6 +9,29 @@ plugins {
     alias(libs.plugins.vanniktech.publish)
 }
 
+// ── core's sources, taken as a module dependency ──────────────────────────────
+// The source sets below compile `:core` in (see the comment in `sourceSets`). They reach it
+// through this configuration, which resolves `project(":core")`'s `coreSourcesElements` variant
+// — a dependency edge Gradle knows about, rather than a `../core/src` path that silently rots if
+// the module moves. Being a standalone configuration, it is invisible to publication: nothing
+// here lands in nahal-ui's POM or module metadata.
+val coreSourcesDeps by configurations.dependencyScope("coreSourcesDeps")
+
+val coreSources by configurations.resolvable("coreSources") {
+    extendsFrom(coreSourcesDeps)
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, "kotlin-sources-dir"))
+    }
+}
+
+dependencies {
+    coreSourcesDeps(project(":core"))
+}
+
+/** A source directory inside `:core`, e.g. `coreSrcDir("commonMain/kotlin")`. */
+fun coreSrcDir(path: String): Provider<File> =
+    coreSources.elements.map { it.single().asFile.resolve(path) }
+
 kotlin {
     jvm {
         mainRun {
@@ -72,17 +95,18 @@ kotlin {
 
     sourceSets {
         // :core publishes nothing (see core/build.gradle.kts), so a `project(":core")` dependency
-        // would leave an unresolvable `com.helpchoice.nahal:nahal-core` coordinate in nahal-ui's
-        // POM — Gradle references project dependencies from a publication, it does not inline
-        // them. Compiling core's sources here instead makes the published artifact self-contained,
-        // and mirrors what the apps already get from static linking. Deps travel with the sources:
-        // everything core declared is re-declared below.
+        // *in a source set* would leave an unresolvable `com.helpchoice.nahal:nahal-core`
+        // coordinate in nahal-ui's POM — Gradle references project dependencies from a
+        // publication, it does not inline them. Compiling core's sources here instead makes the
+        // published artifact self-contained, and mirrors what the apps already get from static
+        // linking. The sources arrive over the `coreSources` configuration declared above, which
+        // publication never looks at. Deps travel with the sources: everything core declared is
+        // re-declared below.
         //
         // Excluded per platform: the standalone @JsExport / @CName facades (JsCoreNavigator,
         // WasmCoreClient, NativeCoreApi). They exist to expose core to non-Kotlin callers of the
         // `nahal-core` shared library, which :core still builds for the GitHub release; inside a
         // UI artifact they are dead weight, and @CName would export C symbols from NahalUI.framework.
-        val coreSrc = "../core/src"
 
         // Android runs the JVM platform support verbatim — the intermediate source set core used
         // to share CorePlatformSupport.kt between them has to exist here too.
@@ -90,13 +114,13 @@ kotlin {
         jvmMain.get().dependsOn(jvmAndroidMain)
         androidMain.get().dependsOn(jvmAndroidMain)
 
-        jvmAndroidMain.kotlin.srcDir("$coreSrc/jvmAndroidMain/kotlin")
+        jvmAndroidMain.kotlin.srcDir(coreSrcDir("jvmAndroidMain/kotlin"))
         jvmAndroidMain.dependencies {
             implementation(libs.kaml)
         }
 
         commonMain {
-            kotlin.srcDir("$coreSrc/commonMain/kotlin")
+            kotlin.srcDir(coreSrcDir("commonMain/kotlin"))
             dependencies {
                 implementation(compose.runtime)
                 implementation(compose.foundation)
@@ -113,7 +137,7 @@ kotlin {
         }
 
         jsMain {
-            kotlin.srcDir("$coreSrc/jsMain/kotlin")
+            kotlin.srcDir(coreSrcDir("jsMain/kotlin"))
             kotlin.exclude("**/JsCoreNavigator.kt")
             dependencies {
                 implementation(libs.kaml)
@@ -121,12 +145,12 @@ kotlin {
         }
 
         wasmJsMain {
-            kotlin.srcDir("$coreSrc/wasmJsMain/kotlin")
+            kotlin.srcDir(coreSrcDir("wasmJsMain/kotlin"))
             kotlin.exclude("**/WasmCoreClient.kt")
         }
 
         nativeMain {
-            kotlin.srcDir("$coreSrc/nativeMain/kotlin")
+            kotlin.srcDir(coreSrcDir("nativeMain/kotlin"))
             kotlin.exclude("**/NativeCoreApi.kt")
         }
 

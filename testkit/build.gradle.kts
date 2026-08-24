@@ -6,14 +6,32 @@ plugins {
     alias(libs.plugins.vanniktech.publish)
 }
 
-// :core publishes nothing, so depending on it as a project would leave an unresolvable
-// `com.helpchoice.nahal:nahal-core` coordinate in haldish-testkit's POM. Only one class is used
-// from it — the `curies` documentation resolver — so it is compiled in directly. Copied rather
-// than srcDir'd on the whole package: the rest of core's commonMain needs `expect` platform
-// support this JVM-only module has no actuals for.
+// :core publishes nothing, so depending on it as a normal `implementation` project dependency
+// would leave an unresolvable `com.helpchoice.nahal:nahal-core` coordinate in haldish-testkit's
+// POM. Only one class is used from it — the `curies` documentation resolver — so it is compiled
+// in directly. Copied rather than srcDir'd on the whole package: the rest of core's commonMain
+// needs `expect` platform support this JVM-only module has no actuals for.
+//
+// The file still arrives over a `project(":core")` dependency, on a standalone configuration that
+// publication never reads — see the matching block in core/build.gradle.kts.
+val coreSourcesDeps by configurations.dependencyScope("coreSourcesDeps")
+
+val coreSources by configurations.resolvable("coreSources") {
+    extendsFrom(coreSourcesDeps)
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, "kotlin-sources-dir"))
+    }
+}
+
+dependencies {
+    coreSourcesDeps(project(":core"))
+}
+
 val copyCoreDocLinkResolver by tasks.registering(Copy::class) {
     description = "Copies :core's DocLinkResolver into this module's sources — :core is not published."
-    from("../core/src/commonMain/kotlin/com/helpchoice/nahal/core/DocLinkResolver.kt")
+    from(coreSources.elements.map {
+        it.single().asFile.resolve("commonMain/kotlin/com/helpchoice/nahal/core/DocLinkResolver.kt")
+    })
     into(layout.buildDirectory.dir("generated/core/com/helpchoice/nahal/core"))
 }
 

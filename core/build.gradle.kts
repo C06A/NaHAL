@@ -239,3 +239,26 @@ tasks.register<Exec>("runCoreNativeTest") {
 // `:core` is consumed only inside this build (`:ui`, `:testkit`) and as the `nahal-core`
 // native shared library shipped with the GitHub release; it has no Maven coordinates.
 // Versions 1.0.1 and 2.0.0 remain on Maven Central and are not withdrawn by this.
+
+// ── Source tree, exposed as a consumable variant ──────────────────────────────
+// `:ui` and `:testkit` compile core's sources into themselves rather than depending on a
+// published `nahal-core` (see the Architecture note in .claude/CLAUDE.md). They ask for those
+// sources through `project(":core")` on this configuration, so the wiring is a real dependency
+// edge in the build graph — not a `../core/src` path guess that breaks the day core moves.
+//
+// This never reaches a POM or Gradle module metadata: publication reads a KMP compilation's
+// apiElements / runtimeElements, and a standalone configuration like this one belongs to
+// neither. Verify with `:ui:generatePomFileForKotlinMultiplatformPublication`.
+//
+// The artifact is the `src` directory itself, so consumers index into it per source set
+// (`commonMain/kotlin`, `jsMain/kotlin`, …). Should core ever *generate* sources, attach the
+// generating task to this artifact and every consumer picks up the task dependency for free.
+val coreSourcesElements by configurations.consumable("coreSourcesElements") {
+    attributes {
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, "kotlin-sources-dir"))
+    }
+}
+
+artifacts.add(coreSourcesElements.name, layout.projectDirectory.dir("src")) {
+    type = ArtifactTypeDefinition.DIRECTORY_TYPE
+}

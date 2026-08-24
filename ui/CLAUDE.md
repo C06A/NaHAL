@@ -70,6 +70,25 @@ Caveat for bundled macOS apps: `runMacos*App` launches via `open`, and LaunchSer
 the shell environment, so `HALDISH_CONFIG` / `HALDISH_PLUGIN_PATH` set in a terminal do not reach
 the app. Run the `.kexe` directly when you need env vars.
 
+## `:core` is compiled in, not depended on
+
+Every `com.helpchoice.nahal.core.*` type you see here comes from `:core`'s own source files, added
+to this module's source sets — `nahal-ui` is self-contained and names no `nahal-core` coordinate
+(the reasoning is in [core/CLAUDE.md](../core/CLAUDE.md) and the repo-root `CLAUDE.md`).
+
+The plumbing sits at the top of `build.gradle.kts`: a `coreSourcesDeps`/`coreSources` configuration
+pair resolves `project(":core")`'s `coreSourcesElements` variant to core's `src` directory, and the
+helper `coreSrcDir("<source set>/kotlin")` indexes into it. Working rules:
+
+- Editing `core/src` recompiles this module. There is no artifact boundary.
+- A new dependency in `:core` must be re-declared in the matching source set here, or the compile
+  breaks with unresolved references.
+- A new platform source set in `:core` needs its own `kotlin.srcDir(coreSrcDir(...))` call here, or
+  its files are silently absent.
+- `JsCoreNavigator`, `WasmCoreClient` and `NativeCoreApi` are excluded by name in `jsMain`,
+  `wasmJsMain` and `nativeMain`. Rename one and the exclude must follow it — `@CName` would
+  otherwise export C symbols from `NahalUI.framework`.
+
 ## Structure
 
 ```

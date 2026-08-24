@@ -7,14 +7,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Kotlin Multiplatform project. Dependency direction: `:ui` → `:core` → `haldish`.
 
 **`:core` is not published, and is not a dependency of the published artifacts — its sources are
-compiled into them.** A `project(":core")` dependency survives publication as a *coordinate* in the
-POM and Gradle module metadata, not as inlined content (application packaging is the opposite: the
-jpackage image, the APK and the static `NahalUI.framework` all link core in). With `nahal-core`
-gone from Maven Central, that coordinate would be unresolvable, so `:ui` adds core's source
-directories to its own source sets (`ui/build.gradle.kts`, minus the `@JsExport`/`@CName` facades)
-and `:testkit` compiles in the single class it uses, `DocLinkResolver`. Core's dependencies are
-re-declared in both. The `:core` module itself stays — it builds the `nahal-core` native shared
-library and header shipped with the GitHub release, and owns the tests for that code.
+compiled into them.** A `project(":core")` dependency *declared in a source set* survives
+publication as a *coordinate* in the POM and Gradle module metadata, not as inlined content
+(application packaging is the opposite: the jpackage image, the APK and the static
+`NahalUI.framework` all link core in). With `nahal-core` gone from Maven Central, that coordinate
+would be unresolvable, so `:ui` adds core's source directories to its own source sets
+(`ui/build.gradle.kts`, minus the `@JsExport`/`@CName` facades) and `:testkit` compiles in the
+single class it uses, `DocLinkResolver`. Core's dependencies are re-declared in both. The `:core`
+module itself stays — it builds the `nahal-core` native shared library and header shipped with the
+GitHub release, and owns the tests for that code.
+
+**How those sources travel: a dependency, not a path.** `:core` exposes its `src` directory as a
+consumable variant, `coreSourcesElements` (`Usage=kotlin-sources-dir`, a directory artifact); `:ui`
+and `:testkit` each declare `coreSourcesDeps(project(":core"))` and resolve it through a
+`coreSources` configuration, then index into the result per source set. So the wiring is a real
+edge in the build graph — move or rename the module and Gradle follows it — while staying invisible
+to publication, which reads a compilation's `apiElements`/`runtimeElements` and never a standalone
+configuration. Two Gradle details worth knowing before editing this:
+
+- `configurations.resolvable(...)` **rejects** dependency declarations, hence the pairing with a
+  `configurations.dependencyScope(...)` that the resolvable one `extendsFrom`.
+- Consumer and producer attributes must match exactly, or resolution fails with no variant found.
+
+Verify a change to any of it with
+`./gradlew :ui:generatePomFileForKotlinMultiplatformPublication` and grep the result for
+`nahal-core` — expect no hit.
 
 Practical consequence: **editing `core/src` changes `:ui` and `:testkit`.** They compile those
 files; there is no artifact boundary to shield them.
