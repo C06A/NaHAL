@@ -23,8 +23,8 @@ for tokens, copy and interaction specs.
 # classpath, generates its HALDISH_CONFIG, and resolves :ui as the published nahal-ui artifact.
 # See that repository for the commands.
 #
-# Those tasks need nahal-ui in the local Maven repository first (Central has no 2.0.0 yet):
-#   (cd ../HALDiSh_KMP && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
+# They resolve nahal-ui from Maven Central, so they need this version released — or published
+# locally, when running them against unreleased work here:
 #   ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false
 
 

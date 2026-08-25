@@ -22,12 +22,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (must already exist, e.g. v2.0.0)'
+        description: 'Tag to release (must already exist, e.g. v2.1.0)'
         required: true
-      haldish_ref:
-        description: 'Ref of C06A/HALDiSh_KMP to build the haldish artifact from'
-        required: false
-        default: 'v2.0.0'
       draft:
         description: 'Create the release as a draft'
         type: boolean
@@ -39,11 +35,6 @@ permissions:
 
 env:
   JAVA_VERSION: '21'
-  # haldish is consumed as a published artifact from its own repository. Maven Central currently
-  # serves only 1.0.1, so CI builds the pinned ref and installs it into the local Maven
-  # repository — see the `haldish` job. Once the version this build wants is on Central, delete
-  # that job and the `Restore haldish` step, and drop mavenLocal() from settings.gradle.kts.
-  HALDISH_REF: ${{ github.event.inputs.haldish_ref || 'v2.0.0' }}
 
 jobs:
   # ── 1. Establish the release tag and confirm the build agrees with it ────────
@@ -93,43 +84,10 @@ jobs:
           fi
           echo "Releasing $TAG (project version $VERSION)."
 
-  # ── 2. Build the haldish dependency once, on the host that can build every target ──
-  haldish:
-    name: Bootstrap haldish
-    # macOS is the only Kotlin/Native host that can build the full target set in one pass, so
-    # the artifact published here is complete for all three staging runners.
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: C06A/HALDiSh_KMP
-          ref: ${{ env.HALDISH_REF }}
-          path: haldish
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      - name: Publish haldish to the local Maven repository
-        working-directory: haldish
-        run: ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false --no-daemon
-
-      - name: Pack the published artifacts
-        run: tar -czf haldish-m2.tar.gz -C "$HOME/.m2/repository" com/helpchoice/nahal
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: haldish-m2
-          path: haldish-m2.tar.gz
-          retention-days: 1
-
-  # ── 3. Stage the assets each host can produce ───────────────────────────────
+  # ── 2. Stage the assets each host can produce ───────────────────────────────
   stage:
     name: Stage (${{ matrix.name }})
-    needs: [verify, haldish]
+    needs: [verify]
     runs-on: ${{ matrix.os }}
     # Well clear of the slowest leg (a Kotlin/Native Compose link) while still failing a genuinely
     # stuck job long before GitHub's own 6h cutoff.
@@ -172,16 +130,6 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - uses: gradle/actions/setup-gradle@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: haldish-m2
-
-      - name: Restore haldish into the local Maven repository
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.m2/repository"
-          tar -xzf haldish-m2.tar.gz -C "$HOME/.m2/repository"
 
       # jpackage shells out to dpkg-deb under fakeroot to build the .deb, and uses objcopy from
       # binutils. Neither is guaranteed on the runner image.
@@ -239,14 +187,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # ── 3b. iOS: the one target Gradle cannot finish on its own ─────────────────
+  # ── 2b. iOS: the one target Gradle cannot finish on its own ─────────────────
   # Gradle links NahalUI.framework; turning that into an .app needs Xcode, so this leg does not
   # fit the task-list matrix above. The result is an unsigned *simulator* build — installable with
   # `xcrun simctl install booted NaHAL.app`, not on a device. A device build needs an Apple
   # Developer signing identity, which this workflow deliberately does not handle.
   stage-ios:
     name: Stage (ios)
-    needs: [verify, haldish]
+    needs: [verify]
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -257,15 +205,6 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - uses: gradle/actions/setup-gradle@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: haldish-m2
-
-      - name: Restore haldish into the local Maven repository
-        run: |
-          mkdir -p "$HOME/.m2/repository"
-          tar -xzf haldish-m2.tar.gz -C "$HOME/.m2/repository"
 
       # Compose Multiplatform 1.8's UIKit bindings reference iOS 17 symbols. Fail with a clear
       # message rather than a wall of undefined-symbol errors if the runner image regresses.
@@ -343,7 +282,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # ── 4. Collect everything into one GitHub release ───────────────────────────
+  # ── 3. Collect everything into one GitHub release ───────────────────────────
   release:
     name: Publish release
     needs: [verify, stage, stage-ios]

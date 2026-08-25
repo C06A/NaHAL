@@ -300,17 +300,16 @@ is documented in https://github.com/C06A/HALDiSh_KMP[its repository].
 ./gradlew :core:coverageReport
 ----
 
-Because Maven Central currently serves only Haldish 1.0.1, building against the current 2.0.0 needs
-it published locally first — `settings.gradle.kts` adds `mavenLocal()` for exactly this:
+There is no bootstrap step: Haldish comes from Maven Central like any other dependency, and nothing
+here consumes a plugin. Clone and build.
+
+To try a Haldish change before it is released, publish it locally and add `mavenLocal()` to
+`settings.gradle.kts` for as long as you need it:
 
 [source,bash]
 ----
 (cd ../HALDiSh_KMP && ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false)
-./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false
 ----
-
-Nothing here consumes a plugin, so that is the whole bootstrap: Haldish → this build. The plugin
-repository builds after both, and only if you want it.
 
 == Release artifacts
 

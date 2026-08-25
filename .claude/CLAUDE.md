@@ -39,9 +39,8 @@ files; there is no artifact boundary to shield them.
 **haldish is no longer a module of this build.** It lives in its own repository,
 `../HALDiSh_KMP`, and is consumed here as the published artifact
 `com.helpchoice.nahal:haldish` (version catalog entry `libs.haldish`). Change the HAL client
-there, not here. Because Maven Central currently serves only 1.0.1, `settings.gradle.kts` adds
-`mavenLocal()` — run `./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false` in
-`../HALDiSh_KMP` to make the current 2.0.0 resolvable.
+there, not here. Maven Central serves it, so a clone builds with no bootstrap step: one version
+pin, `libs.haldish` in the version catalog, and Gradle resolves the rest.
 
 **The example plugins are no longer modules of this build either.** They live in
 `../HALDiSh_Plugins`, which this build neither consumes nor knows the contents of — what plugins
@@ -98,8 +97,8 @@ Published to Maven Central via `com.vanniktech.maven.publish`:
 - `com.helpchoice.nahal:nahal-ui` (`:ui`)
 - `com.helpchoice.nahal:haldish-testkit` / `haldish-testkit-groovy` (`:testkit` / `:testkit-groovy`)
 
-`:core` **does not publish** — see Architecture above. `nahal-core` 1.0.1 and 2.0.0 remain on
-Maven Central from before that change; nothing new is released under that coordinate.
+`:core` **does not publish** — see Architecture above. There is no `nahal-core` artifact to depend
+on; its code reaches consumers inside `nahal-ui`.
 
 (`com.helpchoice.nahal:haldish` is published from `../HALDiSh_KMP`. The plugin repository publishes
 its own artifacts; nothing here references them.)

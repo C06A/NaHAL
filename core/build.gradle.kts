@@ -238,7 +238,6 @@ tasks.register<Exec>("runCoreNativeTest") {
 // ── Not published ─────────────────────────────────────────────────────────────
 // `:core` is consumed only inside this build (`:ui`, `:testkit`) and as the `nahal-core`
 // native shared library shipped with the GitHub release; it has no Maven coordinates.
-// Versions 1.0.1 and 2.0.0 remain on Maven Central and are not withdrawn by this.
 
 // ── Source tree, exposed as a consumable variant ──────────────────────────────
 // `:ui` and `:testkit` compile core's sources into themselves rather than depending on a

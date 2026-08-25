@@ -17,10 +17,13 @@ Thumbs.db
 *.klib
 *.framework/
 
+# Kotlin Gradle plugin build state: compiler session markers and the transformed metadata klib
+# cache. Per-machine, rebuilt on demand — the same category as .gradle/ and build/.
+.kotlin/
+
 # Local overrides
 local.properties
 *.local.properties
-yarn.lock
 
 # Claude Code — ignore local override file and session log
 .claude/settings.local.json
