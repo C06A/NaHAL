@@ -50,6 +50,54 @@ data class BodyPart(
     val contentType: String = "text/plain",
 )
 
+/**
+ * One row of a URI Template variable's value. [key] carries the name half of an associative-array
+ * entry and is meaningless — never read — while [TemplateVarValue.keyed] is false.
+ */
+data class VarRow(val key: String = "", val value: String = "")
+
+/**
+ * A URI Template variable's value. RFC 6570 §2.3 allows three kinds, and the editor expresses all
+ * three with one shape — rows, plus whether the key column is showing:
+ *
+ * | rows | keyed | kind |
+ * |---|---|---|
+ * | 1 | false | string (`{id}` → `42`) |
+ * | 2+ | false | list (`{/segs*}` → `/a/b`) |
+ * | any | true | associative array (`{?pairs*}` → `?x=1&y=2`) |
+ *
+ * A single row therefore expands as a scalar, not a one-element list — a list of one is
+ * indistinguishable from a string in every operator RFC 6570 defines, so nothing is lost.
+ */
+data class TemplateVarValue(
+    val rows: List<VarRow> = listOf(VarRow()),
+    val keyed: Boolean = false,
+) {
+    /**
+     * The value in the form core and haldish expect: `String`, `List<String>`, or
+     * `Map<String, String>` — dispatched on by `HalNavigator`'s `toUriTemplateVars`.
+     *
+     * Blank keys drop out of the associative form: an unnamed entry has no expansion under any
+     * operator, and passing it through would emit a stray `=value` pair.
+     */
+    fun toTemplateArg(): Any = when {
+        keyed          -> rows.filter { it.key.isNotBlank() }.associate { it.key to it.value }
+        rows.size == 1 -> rows.first().value
+        else           -> rows.map { it.value }
+    }
+
+    /** True once the value is anything a plain text field could not express. */
+    val isCompound: Boolean get() = keyed || rows.size > 1
+
+    companion object {
+        fun scalar(value: String): TemplateVarValue = TemplateVarValue(listOf(VarRow(value = value)))
+    }
+}
+
+/** `String` / `List` / `Map` values keyed by variable name, ready for `RequestSpec.templateVars`. */
+fun Map<String, TemplateVarValue>.toTemplateArgs(): Map<String, Any> =
+    mapValues { (_, v) -> v.toTemplateArg() }
+
 data class PendingRequest(
     /** Display href shown in the builder/history. For a followed link, [path] drives the actual send. */
     val url: String,
@@ -58,7 +106,8 @@ data class PendingRequest(
     /** Document [path] is resolved against (the resource whose links are shown). */
     val rootDocument: HalDocument? = null,
     val templated: Boolean = false,
-    val vars: Map<String, String> = emptyMap(),
+    /** Values typed into the template form, by variable name. Scalar, list or associative. */
+    val vars: Map<String, TemplateVarValue> = emptyMap(),
     val fromRel: String? = null,
     val method: String = "GET",
     val type: String? = null,

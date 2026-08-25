@@ -99,13 +99,13 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
         val spec = if (req.path != null) {
             RequestSpec(
                 path = req.path, rootDocument = req.rootDocument,
-                method = HttpMethod(req.method), templateVars = req.vars,
+                method = HttpMethod(req.method), templateVars = req.vars.toTemplateArgs(),
                 headers = effectiveHeaders, cookies = req.cookies,
                 body = bodyObj, acceptHal = false,
             )
         } else {
             RequestSpec(
-                url = req.url, method = HttpMethod(req.method), templateVars = req.vars,
+                url = req.url, method = HttpMethod(req.method), templateVars = req.vars.toTemplateArgs(),
                 headers = effectiveHeaders, cookies = req.cookies,
                 body = bodyObj, acceptHal = false,
             )
@@ -344,8 +344,20 @@ class NavigatorState(private val scope: CoroutineScope, plugin: HaldishPlugin? =
     fun jumpTo(id: String) { val idx = history.indexOfFirst { it.id == id }; if (idx >= 0) cursor = idx }
 }
 
-fun expandTemplate(template: String, vars: Map<String, String>): String {
-    val tvars = vars.entries.fold(UriTemplateVars()) { acc, (k, v) -> acc.set(k, v) }
+/**
+ * Expands [template] with [vars], each of which may be a string, a list or an associative array
+ * (RFC 6570 §2.3). The three `UriTemplateVars.set` overloads are resolved statically, so the
+ * dispatch has to happen here rather than by handing `Any` to one of them — that would pick the
+ * scalar overload and stringify the whole collection.
+ */
+fun expandTemplate(template: String, vars: Map<String, TemplateVarValue>): String {
+    val tvars = vars.entries.fold(UriTemplateVars()) { acc, (k, v) ->
+        when (val arg = v.toTemplateArg()) {
+            is List<*>   -> acc.set(k, arg)
+            is Map<*, *> -> acc.set(k, arg.mapKeys { it.key.toString() })
+            else         -> acc.set(k, arg)
+        }
+    }
     return UriTemplate(template).expand(tvars)
 }
 

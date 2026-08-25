@@ -23,6 +23,8 @@ import com.helpchoice.nahal.ui.LocalNaHalColors
 import com.helpchoice.nahal.ui.model.BodyKind
 import com.helpchoice.nahal.ui.model.BodyPart
 import com.helpchoice.nahal.ui.model.PendingRequest
+import com.helpchoice.nahal.ui.model.TemplateVarValue
+import com.helpchoice.nahal.ui.model.VarRow
 import com.helpchoice.nahal.ui.state.expandTemplate
 import com.helpchoice.nahal.ui.state.extractTemplateVars
 
@@ -62,7 +64,7 @@ val LocalFilePicker = compositionLocalOf<(((PickedFile?) -> Unit) -> Unit)?> { n
 @Composable
 fun TemplateForm(
     request: PendingRequest,
-    onVarsChange: (Map<String, String>) -> Unit,
+    onVarsChange: (Map<String, TemplateVarValue>) -> Unit,
     onSubmit: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -96,31 +98,18 @@ fun TemplateForm(
             )
         }
 
-        // Variable inputs
+        // Variable inputs — one block each, since a value can grow to several rows and two columns.
         if (vars.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                vars.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        pair.forEach { varName ->
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(3.dp),
-                            ) {
-                                Text(varName, color = c.accent, fontSize = 11.sp, fontFamily = NaHalMonoFont)
-                                NaHalTextField(
-                                    value = localVars[varName] ?: "",
-                                    onValueChange = { v ->
-                                        localVars = localVars + (varName to v)
-                                        onVarsChange(localVars)
-                                    },
-                                    placeholder = "{$varName}",
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                        }
-                        // pad if odd
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                vars.forEach { varName ->
+                    TemplateVarEditor(
+                        name = varName,
+                        value = localVars[varName] ?: TemplateVarValue(),
+                        onChange = { updated ->
+                            localVars = localVars + (varName to updated)
+                            onVarsChange(localVars)
+                        },
+                    )
                 }
             }
         }
@@ -154,6 +143,220 @@ fun TemplateForm(
         }
     }
 }
+
+/**
+ * Width of the control gutter left of the fields, holding the `×` that drops a field and the `+`s
+ * that insert one. Column headers reserve it too, so they stay over their fields.
+ */
+private val GutterWidth = 22.dp
+
+/**
+ * Editor for one URI Template variable, covering all three RFC 6570 value kinds without a mode
+ * selector — the shape of the grid *is* the kind:
+ *
+ * - one row, one column → string
+ * - a second row → list; each row gets a `×` in the gutter, and deleting back down to one row
+ *   returns it to a string
+ * - `+name` / `+value`, over the ends of the first field → associative array. A lone column holds
+ *   values, so `+name` opens a name column to its left and leaves the typing alone, while `+value`
+ *   re-reads what is typed as the names and opens an empty value column beside it. Once both
+ *   exist, the pair becomes `-name` / `-value`, centred over the column each one drops: `-name`
+ *   keeps the values as a list, `-value` promotes the names — either way a mis-added column is
+ *   recoverable without retyping.
+ *
+ * Every control lives in a gutter left of the fields: the `+`s in the gaps between them, the `×`
+ * level with the field it drops. A `+` inserts directly **below its own field** rather than at the
+ * end, and the first field carries one above it too, so every position including the front is
+ * reachable. Order is meaningful — a list expands in row order, and `{/segments*}` is a path — so
+ * building the sequence in place beats appending and reordering.
+ */
+@Composable
+private fun TemplateVarEditor(
+    name: String,
+    value: TemplateVarValue,
+    onChange: (TemplateVarValue) -> Unit,
+) {
+    val c = LocalNaHalColors.current
+    // A value with no rows cannot be edited back into existence — always show one.
+    val rows = value.rows.ifEmpty { listOf(VarRow()) }
+    val kind = when {
+        value.keyed   -> "assoc"
+        rows.size > 1 -> "list"
+        else          -> "string"
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(HeaderGap)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(name, color = c.accent, fontSize = 11.sp, fontFamily = NaHalMonoFont)
+            Text(kind, color = c.text3, fontSize = 10.sp, fontFamily = NaHalMonoFont)
+        }
+
+        // Column controls, sitting over the first field. One column shows what can be added and at
+        // which end; two columns show what can be dropped, each centred over its own column.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Clear the control gutter so these line up with the fields, not with the `+`/`×`.
+            Spacer(Modifier.width(GutterWidth))
+            if (value.keyed) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    MiniAction("-name") {
+                        onChange(TemplateVarValue(rows.map { VarRow(value = it.value) }, keyed = false))
+                    }
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    MiniAction("-value") {
+                        onChange(TemplateVarValue(rows.map { VarRow(value = it.key) }, keyed = false))
+                    }
+                }
+            } else {
+                Box(Modifier.weight(1f)) {
+                    // A single column holds values, so a name column can only appear to its left —
+                    // hence `+name` at the left end. `+value` at the right end instead re-reads what
+                    // is already typed as the names and opens an empty value column beside it.
+                    MiniAction("+name", Modifier.align(Alignment.CenterStart)) {
+                        onChange(TemplateVarValue(rows.map { VarRow(value = it.value) }, keyed = true))
+                    }
+                    MiniAction("+value", Modifier.align(Alignment.CenterEnd)) {
+                        onChange(TemplateVarValue(rows.map { VarRow(key = it.value) }, keyed = true))
+                    }
+                }
+            }
+        }
+
+        // Just enough room for the insert `+` to sit in the gap between two fields. The top
+        // padding tops the header gap up to a full RowGap, so the leading `+` above the first
+        // field gets the same slot every other one has.
+        Column(
+            modifier = Modifier.padding(top = RowGap - HeaderGap),
+            verticalArrangement = Arrangement.spacedBy(RowGap),
+        ) {
+            rows.forEachIndexed { i, row ->
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Control gutter, always reserved: the `×` sits level with the field, the
+                        // insert `+`s in the gaps above and below it. Reserving it even for a lone
+                        // field keeps the fields from shifting sideways when a second row appears.
+                        Box(
+                            modifier = Modifier.width(GutterWidth),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (rows.size > 1) {
+                                Text(
+                                    text = "×",
+                                    color = c.text3,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.clickable {
+                                        onChange(value.copy(rows = rows.filterIndexed { idx, _ -> idx != i }))
+                                    },
+                                )
+                            }
+                        }
+                        if (value.keyed) {
+                            NaHalTextField(
+                                value = row.key,
+                                onValueChange = { onChange(value.copy(rows = rows.replaceAt(i, row.copy(key = it)))) },
+                                placeholder = "name",
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        NaHalTextField(
+                            value = row.value,
+                            onValueChange = { onChange(value.copy(rows = rows.replaceAt(i, row.copy(value = it)))) },
+                            placeholder = if (value.keyed) "value" else "{$name}",
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+
+                    // The first field also gets one *above* it, so a value can be put in front of
+                    // what is already there — otherwise the first position is the one spot the
+                    // insert affordance cannot reach.
+                    if (i == 0) {
+                        InsertFieldButton(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .offset(x = GutterInset, y = -(RowGap / 2 + InsertButtonSize / 2)),
+                            onClick = { onChange(value.copy(rows = rows.insertAt(0, VarRow()))) },
+                        )
+                    }
+
+                    // Centred in the gap below this field, and in the gutter left of it. Aligning
+                    // to the bottom puts the button's own bottom edge on the field's, so shifting
+                    // it down by half the gap plus half its height lands its centre on the gap's
+                    // centre line.
+                    InsertFieldButton(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .offset(x = GutterInset, y = RowGap / 2 + InsertButtonSize / 2),
+                        onClick = { onChange(value.copy(rows = rows.insertAt(i + 1, VarRow()))) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Vertical gap between two value fields — the insert `+` is centred in it. */
+private val RowGap = 10.dp
+
+/** Gap under the variable's name/kind line and its column headers. */
+private val HeaderGap = 4.dp
+
+/** Size of the per-field insert button. Slightly taller than [RowGap], so it grazes both fields. */
+private val InsertButtonSize = 12.dp
+
+/** Left inset that centres an insert button within [GutterWidth]. */
+private val GutterInset = (GutterWidth - InsertButtonSize) / 2
+
+/** The `+` sitting in the gap below a field's left edge: inserts a new field right below it. */
+@Composable
+private fun InsertFieldButton(modifier: Modifier, onClick: () -> Unit) {
+    val c = LocalNaHalColors.current
+    Box(
+        modifier = modifier
+            .size(InsertButtonSize)
+            .clip(RoundedCornerShape(3.dp))
+            // The form's own background, not the field's — the button has to punch through the
+            // field border it sits on rather than look like a hole in the field.
+            .background(c.bg2)
+            .border(1.dp, c.border, RoundedCornerShape(3.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("+", color = c.text3, fontSize = 9.sp, fontFamily = NaHalMonoFont)
+    }
+}
+
+/** Small bordered text button, matching the "+ Add header" affordance in the request builder. */
+@Composable
+private fun MiniAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = LocalNaHalColors.current
+    Text(
+        text = label,
+        color = c.text3,
+        fontSize = 10.sp,
+        fontFamily = NaHalMonoFont,
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.dp, c.border, RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+private fun <T> List<T>.replaceAt(index: Int, item: T): List<T> =
+    toMutableList().also { it[index] = item }
+
+private fun <T> List<T>.insertAt(index: Int, item: T): List<T> =
+    toMutableList().also { it.add(index, item) }
 
 // ── Request builder ───────────────────────────────────────────────────────────
 
