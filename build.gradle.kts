@@ -78,8 +78,9 @@ allprojects {
 //   • nahal-app-macos-<arch>-<version>.zip       — NaHAL.app, Kotlin/Native, no JVM at all
 //   • nahal-app-ios-simulator-<version>.zip      — unsigned iOS simulator build (CI only, needs Xcode)
 //   • nahal-android-<version>.apk / .aab         — Android app / Play Store bundle
-//   • nahal-ui-web-<version>.zip                 — browser UI bundle (JS; the wasmJs target
-//                                                  declares no executable, so no wasm bundle)
+//   • nahal-ui-web-<version>.zip                 — browser UI bundle (JS — the compatible one)
+//   • nahal-ui-wasm-<version>.zip                — browser UI bundle (WebAssembly; needs a
+//                                                  wasm-GC browser, bigger, faster)
 //   • nahal-native-<platform>-<version>.zip      — nahal-core shared lib + C header, per platform
 //
 // No JVM-free desktop app exists for Linux or Windows: Compose Multiplatform ships no
@@ -146,10 +147,6 @@ val zipWebUi = tasks.register<Zip>("zipWebUi") {
     // compiled ui.js into build/kotlin-webpack/, while the distribution task assembles the
     // servable bundle in build/dist/js/productionExecutable — index.html, the skiko wasm/js
     // runtime and composeResources included.
-    //
-    // Note: the wasmJs target declares only browser(), no binaries.executable(),
-    // so there is no wasm webpack bundle to ship. Add binaries.executable() to
-    // the ui wasmJs target if a wasm web build is wanted here.
     dependsOn(":ui:jsBrowserDistribution")
     archiveFileName.set("nahal-ui-web-$releaseVersion.zip")
     destinationDirectory.set(releaseDir)
@@ -164,6 +161,31 @@ val zipWebUi = tasks.register<Zip>("zipWebUi") {
         val entries = dir.listFiles()?.filterNot { it.name == ".gitkeep" }.orEmpty()
         if (entries.none { it.name == "index.html" }) error(
             "No web bundle in $dir — expected index.html from :ui:jsBrowserDistribution"
+        )
+    }
+}
+
+// The same UI compiled to WebAssembly instead of JS. Shipped alongside the JS bundle rather than
+// replacing it: wasm needs a browser with the GC proposal (Chrome/Edge 119+, Firefox 120+,
+// Safari 18.2+), so the JS bundle remains the compatible fallback. The wasm bundle is the larger
+// download — two .wasm blobs, Skia among them — but runs the same Compose UI without a JS
+// interpreter in the draw path.
+val zipWebUiWasm = tasks.register<Zip>("zipWebUiWasm") {
+    group       = "release"
+    description = "Stages the browser UI bundle (WebAssembly)."
+    dependsOn(":ui:wasmJsBrowserDistribution")
+    archiveFileName.set("nahal-ui-wasm-$releaseVersion.zip")
+    destinationDirectory.set(releaseDir)
+
+    val bundleDir = project(":ui").layout.buildDirectory.dir("dist/wasmJs/productionExecutable")
+    from(bundleDir) { exclude(".gitkeep") }
+
+    // Same NO-SOURCE trap as the JS bundle above: an empty directory would stage nothing, silently.
+    doFirst {
+        val dir = bundleDir.get().asFile
+        val entries = dir.listFiles()?.filterNot { it.name == ".gitkeep" }.orEmpty()
+        if (entries.none { it.name == "index.html" }) error(
+            "No wasm bundle in $dir — expected index.html from :ui:wasmJsBrowserDistribution"
         )
     }
 }
@@ -223,7 +245,10 @@ val checksumReleaseArtifacts = tasks.register("checksumReleaseArtifacts") {
 tasks.register("stageReleaseArtifacts") {
     group       = "release"
     description = "Builds and organizes all GitHub release assets under build/release (no upload)."
-    dependsOn(nativeZipTasks, macosAppZipTasks, zipWebUi, stageDesktopInstaller, stageAndroidApp)
+    dependsOn(
+        nativeZipTasks, macosAppZipTasks, zipWebUi, zipWebUiWasm,
+        stageDesktopInstaller, stageAndroidApp,
+    )
     finalizedBy(checksumReleaseArtifacts)
 }
 

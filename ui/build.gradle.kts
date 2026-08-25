@@ -53,6 +53,9 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
+        // Entry point: WasmEntry.kt's main(). Unlike the JS bundle, the wasm one needs no
+        // skiko.js bootstrap — Compose's wasm runtime loads Skia itself.
+        binaries.executable()
     }
 
     macosX64 {

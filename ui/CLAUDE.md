@@ -28,12 +28,15 @@ for tokens, copy and interaction specs.
 #   ./gradlew publishToMavenLocal -PRELEASE_SIGNING_ENABLED=false
 
 
-# Build the web UI (JS — output: ui/build/dist/js/productionExecutable/)
-./gradlew :ui:jsBrowserProductionWebpack
+# Build the web UI. Two independent bundles from the same sources — the JS one runs in any
+# browser, the wasm one needs WasmGC (Chrome/Edge 119+, Firefox 120+, Safari 18.2+).
+# Use the *Distribution tasks: the *Webpack ones emit only the compiled script, while these
+# assemble what a static host actually serves (index.html, runtime, composeResources).
+./gradlew :ui:jsBrowserDistribution        # -> ui/build/dist/js/productionExecutable/
+./gradlew :ui:wasmJsBrowserDistribution    # -> ui/build/dist/wasmJs/productionExecutable/
 
-# There is NO wasm web build. The wasmJs target declares browser() but no
-# binaries.executable(), so no wasmJsBrowserProductionWebpack task exists — only
-# wasmJsBrowserTest. Add binaries.executable() to the wasmJs target to get one.
+# Their index.html files differ on purpose: the JS one waits on skiko.js's onWasmReady before
+# loading ui.js, the wasm one just loads ui.js — Compose's wasm runtime initialises Skia itself.
 
 # Android (the installable app lives in :androidApp; :ui only carries the library variant)
 ./gradlew :androidApp:assembleRelease     # APK

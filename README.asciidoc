@@ -65,8 +65,8 @@ This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testk
 | `nahal-ui-web-<version>.zip`, served from any static host
 
 | Browser (Wasm)
-| — not shipped yet
-| The `wasmJs` target builds klibs only; see <<wasm-status,Wasm status>>
+| Web app, WasmGC browsers only
+| `nahal-ui-wasm-<version>.zip`; see <<wasm-status,WebAssembly build>>
 
 | iOS
 | Embeddable view controller
@@ -144,11 +144,30 @@ Because a browser build is subject to the same-origin policy, every API you navi
 the browser for this reason alone.
 
 [[wasm-status]]
-==== Wasm status
+==== WebAssembly build
 
-`:ui` declares `wasmJs { browser() }` with no `binaries.executable()`, so no webpack bundle or
-distribution task exists for it — only the published klib. Add `binaries.executable()` to that
-target to build a Wasm web app alongside the JS one.
+The same UI also compiles to WebAssembly, shipped as its own asset next to the JS one:
+
+[source,bash]
+----
+./gradlew :ui:wasmJsBrowserDistribution
+# output: ui/build/dist/wasmJs/productionExecutable/
+
+unzip nahal-ui-wasm-<version>.zip -d nahal-wasm
+cd nahal-wasm && python3 -m http.server 8080
+----
+
+It serves under the same rules as the JS bundle — HTTP only, `application/wasm` for `.wasm`,
+relative paths — with two differences:
+
+* *No `skiko.js` bootstrap.* Compose's Wasm runtime loads Skia itself, so `index.html` simply
+  loads `ui.js`; the Skia and application code arrive as two `.wasm` blobs.
+* *It needs a WasmGC browser* — Chrome/Edge 119+, Firefox 120+, Safari 18.2+. Older browsers get
+  nothing, which is why the JS bundle is still released as the compatible fallback.
+
+For 2.1.0 the Wasm zip is the *smaller* download — 4.3 MB against the JS bundle's 5.6 MB — while
+also keeping the draw path out of a JS interpreter. Browser support, not size, is what keeps the
+JS bundle in the release.
 
 === iOS
 
@@ -307,7 +326,10 @@ repository builds after both, and only if you want it.
 | Desktop installer — host OS format only
 
 | `nahal-ui-web-<version>.zip`
-| Browser app bundle (JS)
+| Browser app bundle (JS) — runs anywhere
+
+| `nahal-ui-wasm-<version>.zip`
+| Browser app bundle (WebAssembly) — needs a WasmGC browser
 
 | `nahal-native-<platform>-<version>.zip`
 | `nahal-core` shared library + C header, for `macos-arm64`, `macos-x64`, `linux-x64`, `windows-x64`

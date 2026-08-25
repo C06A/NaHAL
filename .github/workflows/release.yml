@@ -155,8 +155,8 @@ jobs:
             tasks: zipMacosAppMacosX64
           - name: linux
             os: ubuntu-latest
-            # The web bundle is host-independent, so it is built here rather than three times.
-            tasks: zipNativeLinuxX64 zipWebUi stageDesktopInstaller
+            # Both web bundles are host-independent, so they are built here rather than three times.
+            tasks: zipNativeLinuxX64 zipWebUi zipWebUiWasm stageDesktopInstaller
           - name: windows
             os: windows-latest
             tasks: zipNativeMingwX64 stageDesktopInstaller
@@ -284,7 +284,17 @@ jobs:
 
       # -target, not -scheme: schemes are autocreated rather than committed, so targeting is the
       # deterministic choice. Simulator builds need no signing identity.
+      #
+      # MARKETING_VERSION / CURRENT_PROJECT_VERSION are passed on the command line rather than
+      # committed to project.pbxproj, which hardcodes 1.0 — Xcode owns that file and nothing in the
+      # Gradle build writes it, so without this the bundle inside nahal-app-ios-simulator-<version>
+      # .zip would claim a version the release does not have. VERSION comes from the verify job,
+      # which has already checked it against the tag. CFBundleVersion (the build number) gets the
+      # same string: App Store Connect wants it to increase per upload, and the project version is
+      # the only monotonic number this build has.
       - name: Build the iOS app
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
         run: |
           xcodebuild \
             -project iosApp/iosApp.xcodeproj \
@@ -292,6 +302,8 @@ jobs:
             -sdk iphonesimulator \
             -configuration Debug \
             -derivedDataPath build/ios-derived \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$VERSION" \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Stage the .app
@@ -303,6 +315,18 @@ jobs:
             echo "::error::xcodebuild produced no NaHAL.app"
             exit 1
           fi
+
+          # The bundle is only version-stamped because the build step overrode MARKETING_VERSION;
+          # project.pbxproj still says 1.0. Assert the override landed, so the asset's name and the
+          # version inside it can never disagree — Xcode ignores unknown settings silently.
+          BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          echo "NaHAL.app CFBundleShortVersionString: $BUNDLE_VERSION"
+          if [[ "$BUNDLE_VERSION" != "$VERSION" ]]; then
+            echo "::error::iOS bundle version is $BUNDLE_VERSION, expected $VERSION."
+            echo "::error::MARKETING_VERSION did not reach the build — check the xcodebuild step."
+            exit 1
+          fi
+
           mkdir -p build/release
           # ditto, not zip: it preserves the bundle's symlinks and permissions.
           ditto -c -k --keepParent "$APP" "build/release/nahal-app-ios-simulator-$VERSION.zip"
