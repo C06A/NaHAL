@@ -167,9 +167,9 @@ val zipWebUi = tasks.register<Zip>("zipWebUi") {
 
 // The same UI compiled to WebAssembly instead of JS. Shipped alongside the JS bundle rather than
 // replacing it: wasm needs a browser with the GC proposal (Chrome/Edge 119+, Firefox 120+,
-// Safari 18.2+), so the JS bundle remains the compatible fallback. The wasm bundle is the larger
-// download — two .wasm blobs, Skia among them — but runs the same Compose UI without a JS
-// interpreter in the draw path.
+// Safari 18.2+), so the JS bundle remains the compatible fallback. Browser support is the only
+// reason to keep the JS one: at 2.1.0 the wasm zip is the *smaller* download — 4.3 MiB against
+// 5.6 MiB — and runs the same Compose UI without a JS interpreter in the draw path.
 val zipWebUiWasm = tasks.register<Zip>("zipWebUiWasm") {
     group       = "release"
     description = "Stages the browser UI bundle (WebAssembly)."

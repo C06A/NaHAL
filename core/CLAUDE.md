@@ -38,9 +38,12 @@ Two further consequences for code in this module:
 ./gradlew :core:compileCoreNativeTest  # compiles C++ test against macosX64 shared lib
 ./gradlew :core:runCoreNativeTest      # runs the compiled C++ binary
 
-# Build core native shared library (base name: nahal-core)
+# Build core native shared library (base name: nahal-core). One task per target; each links
+# on its own host, so a full release set spans several machines.
 ./gradlew :core:linkReleaseSharedMacosArm64
+./gradlew :core:linkReleaseSharedMacosX64
 ./gradlew :core:linkReleaseSharedLinuxX64
+./gradlew :core:linkReleaseSharedMingwX64
 ```
 
 ## Key data flow
@@ -83,4 +86,4 @@ HalNavigator.navigate(resource, selector, method, ...)
 | `nativeMain` | `@CName("core_link_href")` / `@CName("core_embedded_link_href")` C-exported functions |
 
 Native shared library base name is `nahal-core` (header:
-`core/build/bin/<target>/releaseShared/libnahal_core.h`).
+`core/build/bin/<target>/releaseShared/libnahal_core_api.h`).

@@ -5,7 +5,9 @@
 :source-highlighter: highlight.js
 
 *NaHAL* is a graphical navigator for https://stateless.group/hal_specification.html[HAL (Hypertext Application Language)] APIs, plus the navigation layer it is built on, for https://kotlinlang.org/docs/multiplatform.html[Kotlin Multiplatform].
-Point it at a HAL endpoint and walk the API by following links, expanding URI templates, inspecting embedded resources and building requests — on the desktop, in a browser, or embedded in your own application.
+Point it at a HAL endpoint and walk the API by following links, expanding URI templates, inspecting embedded resources and building requests — on the desktop, on a phone, in a browser, or embedded in your own application.
+
+The GUI offers two switchable layouts: *panes* (traversal rail, accordion resource viewer, request builder) and *graph* (a node-link canvas of the traversal with a detail drawer).
 
 [NOTE]
 ====
@@ -14,7 +16,8 @@ Point it at a HAL endpoint and walk the API by following links, expanding URI te
 * https://github.com/C06A/HALDiSh_KMP[C06A/HALDiSh_KMP] — the *Haldish* HAL client (parsing, URI templates, HTTP, the plugin contract). Published as `com.helpchoice.nahal:haldish`. Change the HAL client there, not here.
 * https://github.com/C06A/HALDiSh_Plugins[C06A/HALDiSh_Plugins] — the example plugins. Nothing here depends on them; that repository also owns the tasks that launch NaHAL with plugins active.
 
-This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testkit-groovy`.
+This repository builds NaHAL on top of both: `:core`, `:ui`, `:androidApp`, `:testkit`,
+`:testkit-groovy`, plus the `iosApp/` Xcode host.
 ====
 
 == What is in this repository
@@ -28,7 +31,11 @@ This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testk
 
 | `:ui`
 | `com.helpchoice.nahal:nahal-ui`
-| The Compose Multiplatform navigator GUI: desktop, browser, iOS.
+| The Compose Multiplatform navigator GUI: desktop (JVM and native macOS), browser (JS and Wasm), Android library variant, iOS `NahalUI.framework`. Library only — every platform's entry point calls `NaHalNavigator()`.
+
+| `:androidApp`
+| *not published* — released as an APK/AAB
+| The installable Android app: one Activity hosting `NaHalNavigator()`.
 
 | `:testkit`
 | `com.helpchoice.nahal:haldish-testkit`
@@ -37,6 +44,10 @@ This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testk
 | `:testkit-groovy`
 | `com.helpchoice.nahal:haldish-testkit-groovy`
 | Groovy/Spock bindings for the testkit.
+
+| `iosApp/`
+| *not a Gradle module*
+| Xcode project that links `NahalUI.framework` (produced by `:ui`) into an iOS app.
 |===
 
 == Supported platforms
@@ -50,7 +61,7 @@ This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testk
 
 | macOS (native)
 | Desktop app, no JVM required
-| `NaHAL.app` bundle built by `./gradlew :ui:bundleMacosArm64App`
+| `nahal-app-macos-{arm64,x64}-<version>.zip`, or `./gradlew :ui:bundleMacosArm64App` / `:ui:bundleMacosX64App`
 
 | Linux
 | Desktop app
@@ -68,9 +79,13 @@ This repository builds NaHAL on top of both: `:core`, `:ui`, `:testkit`, `:testk
 | Web app, WasmGC browsers only
 | `nahal-ui-wasm-<version>.zip`; see <<wasm-status,WebAssembly build>>
 
+| Android
+| Installable app (API 24+)
+| `nahal-android-<version>.apk`, or `./gradlew :androidApp:assembleRelease`
+
 | iOS
-| Embeddable view controller
-| `MainViewController()` from the `nahal-ui` klib; no packaged app in this build
+| App, and an embeddable view controller
+| `nahal-app-ios-simulator-<version>.zip` (unsigned simulator build), or Xcode over `NahalUI.framework`; `MainViewController()` from the `nahal-ui` klib to embed it
 
 | Linux / macOS / Windows (C)
 | Shared library
@@ -95,6 +110,10 @@ Installers are built by Compose Desktop, which only produces the *host* format �
 # e.g. on macOS: NahalNavigator-<version>.dmg
 ----
 
+These installers embed a Java runtime, so the end user installs no JVM. Linux and Windows get one
+of them rather than a JVM-free native build, because Compose Multiplatform ships no Kotlin/Native
+renderer for either — macOS is the only desktop OS where the native path below exists.
+
 === macOS, without a JVM (Kotlin/Native)
 
 The macOS targets also build a standalone executable and wrap it in an app bundle:
@@ -103,7 +122,7 @@ The macOS targets also build a standalone executable and wrap it in an app bundl
 ----
 ./gradlew :ui:runMacosArm64App     # Apple silicon — builds NaHAL.app and opens it
 ./gradlew :ui:runMacosX64App       # Intel
-# bundle only, no launch: ./gradlew :ui:bundleMacosArm64App
+# bundle only, no launch: ./gradlew :ui:bundleMacosArm64App   (or :ui:bundleMacosX64App)
 # output: ui/build/NaHAL.app
 ----
 
@@ -169,10 +188,41 @@ For 2.1.0 the Wasm zip is the *smaller* download — 4.3 MB against the JS bundl
 also keeping the draw path out of a JS interpreter. Browser support, not size, is what keeps the
 JS bundle in the release.
 
+=== Android
+
+`:androidApp` is the installable app; `:ui` carries the reusable android library variant that ships
+inside `nahal-ui`. Minimum API level 24, compiled against API 35.
+
+[source,bash]
+----
+./gradlew :androidApp:assembleRelease   # APK  -> androidApp/build/outputs/apk/release/
+./gradlew :androidApp:bundleRelease     # AAB  -> androidApp/build/outputs/bundle/release/
+./gradlew :androidApp:installDebug      # build and install on a connected device/emulator
+----
+
+Release signing comes from `NAHAL_KEYSTORE`, `NAHAL_KEYSTORE_PASSWORD`, `NAHAL_KEY_ALIAS` and
+`NAHAL_KEY_PASSWORD` (Gradle properties or environment variables). Without them the release build
+falls back to the local debug key — installable from a GitHub download, *not* acceptable for a Play
+Store upload.
+
 === iOS
 
-`:ui` publishes iOS klibs and exposes a Compose entry point; this build produces no `.app` or
-`.ipa`. Embed it from an Xcode project:
+Gradle links `NahalUI.framework`; Xcode turns it into the app. Building needs the iOS 17 SDK
+(Xcode 15+), because Compose Multiplatform's UIKit bindings reference iOS 17 symbols.
+
+[source,bash]
+----
+./gradlew :ui:copyIosFrameworkForXcode -Pios.target=iosSimulatorArm64 -Pios.config=Debug
+xcodebuild -project iosApp/iosApp.xcodeproj -target iosApp \
+    -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO
+----
+
+The released asset is that same unsigned *simulator* build — install it with
+`xcrun simctl install booted NaHAL.app`. A device build needs an Apple Developer signing identity,
+which this repository deliberately does not handle.
+
+To embed the navigator in your own app instead, take the Compose entry point from the `nahal-ui`
+klib:
 
 [source,swift]
 ----
@@ -191,17 +241,17 @@ plugin sitting on the classpath or in a drop-in directory stays inert on its own
 |===
 | Runtime | How plugins get in | Ordering and properties
 
-| JVM
+| JVM (desktop, Android)
 | Drop `*.jar` into `$NAHAL_PLUGINS_DIR` (default `plugins/` in the working directory). The app puts them on a child classloader; that is all it does.
-| `HALDISH_CONFIG` — a JSON or YAML file listing plugin class names. File order is chain order; each entry's children are passed to the plugin's `initialize()`.
+| `HALDISH_CONFIG` — a JSON or YAML file listing plugin class names, read from a system property first and the environment second. File order is chain order; each entry's children are passed to the plugin's `initialize()`.
 
-| Native
-| No reflection: plugins are compiled in and registered by class name before the UI starts.
+| Native (macOS, iOS)
+| No reflection: plugins are compiled in and registered by class name in `CorePluginRegistry` before the UI starts.
 | `HALDISH_CONFIG` (JSON only) selects which registered plugins run, in what order.
 
-| Browser
-| Registered by the hosting page.
-| `window.__nahalConfig`.
+| Browser (JS, Wasm)
+| Registered in Kotlin via `CorePluginRegistry` by the hosting page's app code — no dynamic loading in a browser.
+| `window.__nahalConfig`, the same nested tree as the config file.
 
 | Any, single artifact
 | `HALDISH_PLUGIN_PATH` with *no* `HALDISH_CONFIG` — Haldish's own loader takes that one artifact (a JAR on the JVM, a `.dylib`/`.so`/`.dll` on native). Naming the artifact is the configuration.
@@ -214,91 +264,28 @@ see https://github.com/C06A/HALDiSh_Plugins[C06A/HALDiSh_Plugins].
 The plugin contract itself — hooks, lifecycle, the C ABI, packaging — is specified in
 link:PLUGIN_CONTRACT.md[PLUGIN_CONTRACT.md].
 
-== Using the navigation layer as a library
-
-`nahal-core` is no longer published. Its API — `HalNavigator`, `LinkSelector`, `DocLinkResolver` —
-is compiled into `nahal-ui`, so one dependency gets both the navigator and the GUI:
-
-[source,kotlin]
-----
-// build.gradle.kts
-dependencies {
-    implementation("com.helpchoice.nahal:nahal-ui:<version>")
-}
-----
-
-[source,kotlin]
-----
-import com.helpchoice.nahal.core.HalNavigator
-import com.helpchoice.nahal.core.LinkSelector
-import com.helpchoice.nahal.core.RequestSpec
-
-HalNavigator().use { navigator ->
-    // Fetch a starting document
-    val root = navigator.send(RequestSpec(url = "https://api.example.com/")).document!!
-
-    // Follow a link by rel — plugins' preLink hook runs, the URI template is expanded,
-    // the response is parsed
-    val orders = navigator.navigate(root, LinkSelector.TopLevel("orders"))
-    println("${orders.statusCode} ${orders.url}")
-
-    // Links inside embedded resources and collection items
-    navigator.navigate(root, LinkSelector.InEmbedded("ea:order", linkRel = "self"))
-    navigator.navigate(root, LinkSelector.InItems(itemIndex = 0, linkRel = "self"))
-}
-----
-
-`DocLinkResolver` resolves a rel's *documentation* URL from the HAL `curies` relation, walking
-outward through enclosing resources.
-
-=== JavaScript / Node.js
-
-The `:core` JS target builds a library with an exported navigator facade. It is not on Maven
-Central — build it from this repository (the facade is deliberately excluded from `nahal-ui`):
-
-[source,bash]
-----
-./gradlew :core:jsNodeProductionLibraryDistribution
-----
-
-[source,javascript]
-----
-const nav = new JsCoreNavigator();
-nav.linkHref(halJson, 'orders');                       // href for a top-level rel
-nav.embeddedLinkHref(halJson, 'ea:order', 'self');     // href inside an embedded resource
-----
-
-On Wasm the same operations are module-level functions (`coreLinkHref`, `coreEmbeddedLinkHref`),
-because Kotlin/Wasm restricts `@JsExport` to functions.
-
-=== C / C++
-
-[source,bash]
-----
-./gradlew :core:linkReleaseSharedMacosArm64   # or …LinuxX64, …MingwX64, …MacosX64
-# output: core/build/bin/<target>/releaseShared/
-#   libnahal_core.dylib   (.so / .dll)
-#   libnahal_core_api.h
-----
-
-[source,c]
-----
-const char* core_link_href(const char* halJson, const char* rel);
-const char* core_embedded_link_href(const char* halJson, const char* embeddedRel,
-                                    const char* linkRel);
-----
-
-The full HAL client C API — HTTP verbs, headers, multipart, URI templates — belongs to Haldish and
-is documented in https://github.com/C06A/HALDiSh_KMP[its repository].
-
 == Building and testing
 
 [source,bash]
 ----
 ./gradlew build              # all modules, host platform targets
 ./gradlew :core:jvmTest      # core tests (JVM is the only target with a standard runner)
+./gradlew :ui:jvmTest        # UI tests — graph layout, template variables, navigator state
 ./gradlew :core:coverageReport
 ----
+
+The non-JVM targets of `:core` are verified by their own tasks, since they have no standard test
+runner:
+
+[source,bash]
+----
+./gradlew :core:runCoreJsTest        # Node runs src/test/js/simple-example.cjs
+./gradlew :core:runCoreNativeTest    # C++ test against the macosX64 shared library
+----
+
+Editing `core/src` recompiles `:ui` and `:testkit`: `:core` is not published, and those modules
+add its source directories to their own source sets rather than depending on a `nahal-core`
+artifact. There is no artifact boundary to shield them.
 
 There is no bootstrap step: Haldish comes from Maven Central like any other dependency, and nothing
 here consumes a plugin. Clone and build.
@@ -316,7 +303,12 @@ To try a Haldish change before it is released, publish it locally and add `maven
 [source,bash]
 ----
 ./gradlew stageReleaseArtifacts    # collects into build/release/, uploads nothing
+./gradlew checksumReleaseArtifacts # .sha256 beside whatever landed there
 ----
+
+`stageReleaseArtifacts` builds everything Gradle can produce on the current host (the Android leg
+needs an SDK on `ANDROID_HOME`); the iOS asset is the exception — it comes from `xcodebuild` in the
+release workflow, not from a Gradle task.
 
 |===
 | Asset | Contents
@@ -330,6 +322,15 @@ To try a Haldish change before it is released, publish it locally and add `maven
 | `nahal-ui-wasm-<version>.zip`
 | Browser app bundle (WebAssembly) — needs a WasmGC browser
 
+| `nahal-app-macos-{arm64,x64}-<version>.zip`
+| `NaHAL.app` — the JVM-free Kotlin/Native desktop app
+
+| `nahal-android-<version>.apk` / `.aab`
+| Android app; the APK is the installable download, the AAB is what a Play Store upload needs
+
+| `nahal-app-ios-simulator-<version>.zip`
+| Unsigned iOS *simulator* build of `NaHAL.app`
+
 | `nahal-native-<platform>-<version>.zip`
 | `nahal-core` shared library + C header, for `macos-arm64`, `macos-x64`, `linux-x64`, `windows-x64`
 
@@ -337,8 +338,14 @@ To try a Haldish change before it is released, publish it locally and add `maven
 | Checksum for every asset above
 |===
 
-Attach all of them to the GitHub release. Klibs, sources and javadoc are not duplicated here —
-Maven Central serves those for Gradle and Maven users.
+No single machine builds the full set: Compose Desktop packages only the host's installer format,
+each Kotlin/Native library links on its own host, and the iOS app needs Xcode.
+`.github/workflows/release.yml` runs the per-host subsets on a tag matching the project version
+(`v2.1.0` ↔ `version = "2.1.0"` in the root `build.gradle.kts`), then collects everything into one
+draft GitHub release.
+
+Klibs, sources and javadoc are not duplicated as release assets — Maven Central serves those for
+Gradle and Maven users, published separately with `./gradlew publish`.
 
 == Related tools
 

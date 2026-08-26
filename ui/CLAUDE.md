@@ -43,8 +43,9 @@ for tokens, copy and interaction specs.
 ./gradlew :androidApp:bundleRelease       # AAB
 
 # Native macOS desktop app — no JVM. Slow: linking a Compose app with Kotlin/Native
-# takes hours, not minutes.
-./gradlew :ui:runMacosArm64App
+# takes hours, not minutes. Both slices exist: swap Arm64 for X64 for Intel.
+./gradlew :ui:runMacosArm64App        # builds NaHAL.app and opens it (:ui:runMacosX64App for Intel)
+./gradlew :ui:bundleMacosArm64App     # bundle only, no launch (:ui:bundleMacosX64App for Intel)
 
 # iOS. Gradle only links NahalUI.framework; Xcode turns it into an .app.
 # Needs the iOS 17 SDK (Xcode 15+) — Compose 1.8's UIKit bindings reference iOS 17 symbols.
