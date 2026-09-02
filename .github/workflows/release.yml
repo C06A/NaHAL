@@ -183,6 +183,8 @@ jobs:
             build/release/*.dmg
             build/release/*.deb
             build/release/*.msi
+            build/release/*.apk
+            build/release/*.aab
             build/release/*.sha256
           if-no-files-found: error
           retention-days: 7
@@ -235,12 +237,17 @@ jobs:
         env:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
+          # SYMROOT, not -derivedDataPath: xcodebuild rejects -derivedDataPath unless -scheme (or
+          # -testProductsPath / -xctestrun) is given, and this build targets a target, not a scheme
+          # — schemes are autocreated rather than committed. SYMROOT redirects the build output the
+          # same way and works with -target, putting the bundle at
+          # build/ios-build/Debug-iphonesimulator/NaHAL.app.
           xcodebuild \
             -project iosApp/iosApp.xcodeproj \
             -target iosApp \
             -sdk iphonesimulator \
             -configuration Debug \
-            -derivedDataPath build/ios-derived \
+            SYMROOT="$PWD/build/ios-build" \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$VERSION" \
             CODE_SIGNING_ALLOWED=NO
@@ -249,7 +256,7 @@ jobs:
         env:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
-          APP=$(find build/ios-derived -type d -name 'NaHAL.app' | head -1)
+          APP=$(find build/ios-build -type d -name 'NaHAL.app' | head -1)
           if [[ -z "$APP" ]]; then
             echo "::error::xcodebuild produced no NaHAL.app"
             exit 1
