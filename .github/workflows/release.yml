@@ -242,11 +242,17 @@ jobs:
           # — schemes are autocreated rather than committed. SYMROOT redirects the build output the
           # same way and works with -target, putting the bundle at
           # build/ios-build/Debug-iphonesimulator/NaHAL.app.
+          # ARCHS/ONLY_ACTIVE_ARCH pin the build to the one slice the previous step linked
+          # (-Pios.target=iosSimulatorArm64). Without them, `-target` gives xcodebuild no active
+          # architecture to derive, so it builds every applicable one — and the x86_64 slice fails
+          # at Ld with no NahalUI.framework to link. Change both together, never one.
           xcodebuild \
             -project iosApp/iosApp.xcodeproj \
             -target iosApp \
             -sdk iphonesimulator \
             -configuration Debug \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
             SYMROOT="$PWD/build/ios-build" \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$VERSION" \

@@ -85,7 +85,7 @@ This repository builds NaHAL on top of both: `:core`, `:ui`, `:androidApp`, `:te
 
 | iOS
 | App, and an embeddable view controller
-| `nahal-app-ios-simulator-<version>.zip` (unsigned simulator build), or Xcode over `NahalUI.framework`; `MainViewController()` from the `nahal-ui` klib to embed it
+| `nahal-app-ios-simulator-<version>.zip` (unsigned Apple-silicon simulator build), or Xcode over `NahalUI.framework`; `MainViewController()` from the `nahal-ui` klib to embed it
 
 | Linux / macOS / Windows (C)
 | Shared library
@@ -214,10 +214,18 @@ Gradle links `NahalUI.framework`; Xcode turns it into the app. Building needs th
 ----
 ./gradlew :ui:copyIosFrameworkForXcode -Pios.target=iosSimulatorArm64 -Pios.config=Debug
 xcodebuild -project iosApp/iosApp.xcodeproj -target iosApp \
-    -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO
+    -sdk iphonesimulator -configuration Debug \
+    ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO
 ----
 
-The released asset is that same unsigned *simulator* build — install it with
+`ARCHS` must name the same slice `-Pios.target` linked. Gradle produces a single-architecture
+`NahalUI.framework`, while `xcodebuild -target` — given no `-destination` to derive an active
+architecture from — otherwise builds every applicable one and fails at `Ld` on the slice that has
+no framework. Swap both together, or neither. (`-derivedDataPath` is not an option here either:
+xcodebuild rejects it without `-scheme`, and this project has no committed scheme. Use `SYMROOT` to
+redirect the output, as the release workflow does.)
+
+The released asset is that same unsigned *simulator* build, Apple silicon only — install it with
 `xcrun simctl install booted NaHAL.app`. A device build needs an Apple Developer signing identity,
 which this repository deliberately does not handle.
 
@@ -329,7 +337,7 @@ release workflow, not from a Gradle task.
 | Android app; the APK is the installable download, the AAB is what a Play Store upload needs
 
 | `nahal-app-ios-simulator-<version>.zip`
-| Unsigned iOS *simulator* build of `NaHAL.app`
+| Unsigned iOS *simulator* build of `NaHAL.app` — Apple silicon (arm64) only
 
 | `nahal-native-<platform>-<version>.zip`
 | `nahal-core` shared library + C header, for `macos-arm64`, `macos-x64`, `linux-x64`, `windows-x64`
