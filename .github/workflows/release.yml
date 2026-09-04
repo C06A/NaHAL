@@ -345,20 +345,33 @@ jobs:
           cp -R ui/build/dist/wasmJs/productionExecutable/.  site/wasm
           sed "s/{{VERSION}}/$VERSION/g" .github/pages/index.html > site/index.html
 
+          # Static HAL entry points for the demo to navigate. Pages serves .json as
+          # application/json rather than application/hal+json; haldish sniffs the body when the
+          # content type is not HAL, so both parse as HAL documents regardless.
+          cp .github/pages/api.json          site/api.json
+          cp .github/pages/api-expanded.json site/api-expanded.json
+
           # Paths inside each bundle's index.html are relative, so serving them from a sub-path
           # needs no rewriting. Fail loudly if either bundle did not land.
           test -f site/js/index.html   || { echo "::error::no JS bundle in site/js"; exit 1; }
           test -f site/wasm/index.html || { echo "::error::no wasm bundle in site/wasm"; exit 1; }
           du -sh site/js site/wasm
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v3
+      # The artifact name carries the run attempt. Re-running just this job leaves the previous
+      # attempt's artifact in place, and deploy-pages refuses to guess between two artifacts with
+      # the same name in one run ("Multiple artifacts named ... Artifact count is 2"). Scoping the
+      # name per attempt keeps every re-run unambiguous; upload and deploy must always agree.
+      - uses: actions/upload-pages-artifact@v5
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: site
 
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
 
   # ── 3. Collect everything into one GitHub release ───────────────────────────
   release:

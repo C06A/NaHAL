@@ -50,6 +50,17 @@
   a.build:hover { border-color: var(--accent); }
   a.build strong { display: block; font-size: 1.15rem; color: var(--accent); margin-bottom: .35rem; }
   a.build span { color: var(--muted); font-size: .92rem; }
+  h2 { font-size: 1.15rem; margin: 0 0 .5rem; }
+  .endpoints { list-style: none; padding: 0; margin: 0 0 2.5rem; }
+  .endpoints li {
+    padding: .85rem 1rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: .75rem;
+  }
+  .endpoints code { display: inline-block; margin-bottom: .3rem; word-break: break-all; }
+  .endpoints span { display: block; color: var(--muted); font-size: .9rem; }
   .note {
     border-left: 3px solid var(--border);
     padding: .1rem 0 .1rem 1rem;
@@ -88,6 +99,28 @@
       <span>Smaller and faster. Needs a WasmGC browser: Chrome/Edge&nbsp;119+, Firefox&nbsp;120+, Safari&nbsp;18.2+.</span>
     </a>
   </div>
+
+  <h2>Something to navigate</h2>
+  <p>
+    Two static HAL entry points are hosted here, both describing
+    <a href="https://www.thecolorapi.com">The Color API</a>. Paste one into the address bar of
+    either build above:
+  </p>
+  <ul class="endpoints">
+    <li>
+      <code>https://c06a.github.io/NaHAL/api-expanded.json</code>
+      <span>Absolute hrefs &mdash; follows straight away in this plugin-free demo.</span>
+    </li>
+    <li>
+      <code>https://c06a.github.io/NaHAL/api.json</code>
+      <span>
+        The same document with <code>color:</code> prefixes against an uppercase
+        <code>CURIE</code> collection. Following those links needs a CURIE-rewriting plugin, so
+        here they resolve only as far as the prefix &mdash; useful for seeing what a plugin has to
+        do.
+      </span>
+    </li>
+  </ul>
 
   <p class="note">
     This demo is served over HTTPS, so it can only reach APIs that are themselves HTTPS
