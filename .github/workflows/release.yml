@@ -295,6 +295,71 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # ── 2c. Hosted demo: the same two browser bundles, served from GitHub Pages ──
+  # Rebuilt here rather than lifted out of the linux job's artifact, so the demo depends only on
+  # `verify`: a red iOS or Windows job must not take the hosted build down with it the way
+  # fail-fast skips `release` below. Final releases only — the public URL should never show an rc.
+  #
+  # Needs "Settings → Pages → Build and deployment → Source: GitHub Actions" enabled once, or
+  # deploy-pages fails with a 404 on the Pages API.
+  pages:
+    name: Deploy demo to Pages
+    needs: [verify]
+    if: needs.verify.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    # A job-level permissions block replaces the workflow-level one, so `contents` is restated.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    # Two deploys racing for the same environment fail; queue them instead of cancelling, so a
+    # re-run never leaves the site half-updated.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The *Distribution tasks, not *Webpack: only these assemble a servable bundle (index.html,
+      # runtime, composeResources) — the same ones zipWebUi / zipWebUiWasm stage for the release.
+      - name: Build both browser bundles
+        run: ./gradlew :ui:jsBrowserDistribution :ui:wasmJsBrowserDistribution --stacktrace
+
+      - name: Assemble the site
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          mkdir -p site
+          # `/.` copies the contents, creating site/js and site/wasm rather than nesting a level.
+          cp -R ui/build/dist/js/productionExecutable/.      site/js
+          cp -R ui/build/dist/wasmJs/productionExecutable/.  site/wasm
+          sed "s/{{VERSION}}/$VERSION/g" .github/pages/index.html > site/index.html
+
+          # Paths inside each bundle's index.html are relative, so serving them from a sub-path
+          # needs no rewriting. Fail loudly if either bundle did not land.
+          test -f site/js/index.html   || { echo "::error::no JS bundle in site/js"; exit 1; }
+          test -f site/wasm/index.html || { echo "::error::no wasm bundle in site/wasm"; exit 1; }
+          du -sh site/js site/wasm
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
   # ── 3. Collect everything into one GitHub release ───────────────────────────
   release:
     name: Publish release

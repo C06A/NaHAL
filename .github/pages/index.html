@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NaHAL — HAL navigator</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --bg2: #f4f5f7;
+    --text: #1c1e21;
+    --muted: #5c6370;
+    --border: #d8dbe0;
+    --accent: #2b6cb0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --bg2: #1e2127;
+      --text: #e6e8eb;
+      --muted: #9aa1ac;
+      --border: #2e3238;
+      --accent: #74a9e0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 3rem 1.25rem 4rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 2rem; margin: 0 0 .25rem; letter-spacing: -.02em; }
+  .version { color: var(--muted); font-size: .9rem; margin: 0 0 2rem; }
+  .lead { font-size: 1.05rem; margin: 0 0 2.5rem; }
+  .builds { display: grid; gap: 1rem; grid-template-columns: 1fr; margin: 0 0 2.5rem; }
+  @media (min-width: 40rem) { .builds { grid-template-columns: 1fr 1fr; } }
+  a.build {
+    display: block;
+    padding: 1.25rem 1.4rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+  }
+  a.build:hover { border-color: var(--accent); }
+  a.build strong { display: block; font-size: 1.15rem; color: var(--accent); margin-bottom: .35rem; }
+  a.build span { color: var(--muted); font-size: .92rem; }
+  .note {
+    border-left: 3px solid var(--border);
+    padding: .1rem 0 .1rem 1rem;
+    margin: 0 0 2rem;
+    color: var(--muted);
+    font-size: .93rem;
+  }
+  code {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .08em .35em;
+    font-size: .88em;
+  }
+  footer { border-top: 1px solid var(--border); padding-top: 1.25rem; font-size: .9rem; color: var(--muted); }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>NaHAL</h1>
+  <p class="version">HAL navigator &middot; version {{VERSION}}</p>
+
+  <p class="lead">
+    Point it at a HAL endpoint and walk the API: follow links, expand URI templates, inspect
+    embedded resources and build requests. Two builds of the same UI &mdash; pick either.
+  </p>
+
+  <div class="builds">
+    <a class="build" href="js/">
+      <strong>JavaScript build &rarr;</strong>
+      <span>Runs in any current browser. The compatible choice.</span>
+    </a>
+    <a class="build" href="wasm/">
+      <strong>WebAssembly build &rarr;</strong>
+      <span>Smaller and faster. Needs a WasmGC browser: Chrome/Edge&nbsp;119+, Firefox&nbsp;120+, Safari&nbsp;18.2+.</span>
+    </a>
+  </div>
+
+  <p class="note">
+    This demo is served over HTTPS, so it can only reach APIs that are themselves HTTPS
+    <em>and</em> send <code>Access-Control-Allow-Origin</code> for this origin. For a HAL server on
+    your own machine or network, download the browser bundle from the release page and serve it
+    over <code>http://localhost</code> instead &mdash; same app, no mixed-content or CORS limits.
+  </p>
+
+  <footer>
+    <a href="https://github.com/C06A/NaHAL">Source on GitHub</a> &middot;
+    <a href="https://github.com/C06A/NaHAL/releases/latest">Downloads: desktop, Android, iOS, browser bundles</a> &middot;
+    Apache&nbsp;License&nbsp;2.0
+  </footer>
+</main>
+</body>
+</html>

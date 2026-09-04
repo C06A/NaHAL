@@ -136,6 +136,12 @@ you need them.
 
 === Browser
 
+Nothing to install: the latest release is hosted at
+https://c06a.github.io/NaHAL/[c06a.github.io/NaHAL] — a landing page linking the JS build (`js/`)
+and the WebAssembly one (`wasm/`). Being served over HTTPS, that copy can only reach APIs that are
+HTTPS *and* CORS-enabled for the origin, so for a HAL server on your own machine or network take
+the bundle below and serve it from `http://localhost`.
+
 Build the bundle, or take the released zip:
 
 [source,bash]
