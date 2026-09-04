@@ -4,6 +4,11 @@
 :icons: font
 :source-highlighter: highlight.js
 
+image:https://img.shields.io/badge/demo-live-2b6cb0[Live demo,link=https://c06a.github.io/NaHAL/]
+image:https://img.shields.io/maven-central/v/com.helpchoice.nahal/nahal-ui[Maven Central,link=https://central.sonatype.com/artifact/com.helpchoice.nahal/nahal-ui]
+image:https://img.shields.io/github/v/release/C06A/NaHAL[Latest release,link=https://github.com/C06A/NaHAL/releases/latest]
+image:https://img.shields.io/badge/license-Apache%202.0-blue[License,link=https://www.apache.org/licenses/LICENSE-2.0]
+
 *NaHAL* is a graphical navigator for https://stateless.group/hal_specification.html[HAL (Hypertext Application Language)] APIs, plus the navigation layer it is built on, for https://kotlinlang.org/docs/multiplatform.html[Kotlin Multiplatform].
 Point it at a HAL endpoint and walk the API by following links, expanding URI templates, inspecting embedded resources and building requests — on the desktop, on a phone, in a browser, or embedded in your own application.
 
