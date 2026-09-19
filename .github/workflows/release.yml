@@ -349,7 +349,6 @@ jobs:
           # application/json rather than application/hal+json; haldish sniffs the body when the
           # content type is not HAL, so both parse as HAL documents regardless.
           cp .github/pages/api.json          site/api.json
-          cp .github/pages/api-expanded.json site/api-expanded.json
 
           # Paths inside each bundle's index.html are relative, so serving them from a sub-path
           # needs no rewriting. Fail loudly if either bundle did not land.
