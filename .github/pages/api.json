@@ -1,52 +1,129 @@
 {
   "_links": {
-    "CURIE": [
+    "curies": [
       {
-        "href": "https://www.thecolorapi.com",
-        "name": "color"
+        "href": "https://www.thecolorapi.com/",
+        "name": "overview"
+      },
+      {
+        "href": "https://www.thecolorapi.com/docs{#rel}",
+        "name": "doc"
       }
     ],
     "self": {
       "href": "/",
       "type": "application/hal+json"
     },
-    "about": {
+    "overview:about": {
       "href": "https://www.thecolorapi.com",
       "type": "text/html",
       "title": "The Color API website"
     },
-    "color": [
+    "doc:colors": [
       {
-        "href": "color:/id?format=json{&hex,rgb,hsl,hsv,cmyk}",
+        "href": "https://www.thecolorapi.com/id?format=json{&hex,rgb,hsl,hsv,cmyk}",
         "templated": true,
-        "type": "application/hal+json"
+        "type": "application/hal+json",
+        "name": "as JSON"
       },
       {
-        "href": "color:/id?format=svg{&hex,rgb,hsl,hsv,cmyk,w,named}",
+        "href": "https://www.thecolorapi.com/id?format=svg{&hex,rgb,hsl,hsv,cmyk,w,named}",
         "templated": true,
-        "type": "application/svg"
+        "type": "application/svg",
+        "name": "as SVG"
       },
       {
-        "href": "color:/id?format=html{&hex,rgb,hsl,hsv,cmyk}",
+        "href": "https://www.thecolorapi.com/id?format=html{&hex,rgb,hsl,hsv,cmyk}",
         "templated": true,
-        "type": "text/html"
+        "type": "text/html",
+        "name": "as HTML"
       }
     ],
-    "scheme": [
+    "doc:schemes": [
       {
-        "href": "color:/scheme?format=json{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
+        "href": "https://www.thecolorapi.com/scheme?format=json{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
         "templated": true,
-        "type": "application/hal+json"
+        "type": "application/hal+json",
+        "name": "as JSON"
       },
       {
-        "href": "color:/scheme?format=svg{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
+        "href": "https://www.thecolorapi.com/scheme?format=svg{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
         "templated": true,
-        "type": "application/svg"
+        "type": "application/svg",
+        "name": "as SVG"
       },
       {
-        "href": "color:/scheme?format=html{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
+        "href": "https://www.thecolorapi.com/scheme?format=html{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
         "templated": true,
-        "type": "text/html"
+        "type": "text/html",
+        "name": "as HTML"
+      }
+    ]
+  },
+  "_embedded": {
+    "colors": [
+      {
+        "_links": {
+          "self": {
+            "href": "https://www.thecolorapi.com/id?format=json&hex=F00",
+            "type": "application/hal+json"
+          },
+          "formats": [
+            {
+              "href": "https://www.thecolorapi.com/id?format=json&hex=F00",
+              "type": "application/hal+json",
+              "name": "HEX"
+            },
+            {
+              "href": "https://www.thecolorapi.com/id?format=json&rgb=255,0,0",
+              "type": "application/hal+json",
+              "name": "RGB"
+            }
+          ]
+        },
+        "name": "red"
+      },
+      {
+        "_links": {
+          "self": {
+            "href": "https://www.thecolorapi.com/id?format=json&hex=0F0",
+            "type": "application/hal+json"
+          },
+          "formats": [
+            {
+              "href": "https://www.thecolorapi.com/id?format=json&hex=0F0",
+              "type": "application/hal+json",
+              "name": "HEX"
+            },
+            {
+              "href": "https://www.thecolorapi.com/id?format=json&rgb=0,255,0",
+              "type": "application/hal+json",
+              "name": "RGB"
+            }
+          ]
+        },
+        "name": "green"
+      },
+      {
+        "_links": {
+          "self": {
+            "href": "https://www.thecolorapi.com/id?format=json&hex=00F",
+            "type": "application/hal+json"
+          },
+          "formats": [
+            {
+              "href": "https://www.thecolorapi.com/id?format=json&hex=00F",
+              "type": "application/hal+json",
+              "name": "HEX"
+            },
+            {
+              "href": "https://www.thecolorapi.com/id?format=json&rgb=0,0,255",
+              "type": "application/hal+json",
+              "name": "RGB"
+            }
+          ]
+        },
+        "name": "blue"
       }
     ]
   },
