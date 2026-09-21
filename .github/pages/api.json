@@ -29,7 +29,7 @@
       {
         "href": "https://www.thecolorapi.com/id?format=svg{&hex,rgb,hsl,hsv,cmyk,w,named}",
         "templated": true,
-        "type": "application/svg",
+        "type": " image/svg+xml",
         "name": "as SVG"
       },
       {
@@ -49,7 +49,7 @@
       {
         "href": "https://www.thecolorapi.com/scheme?format=svg{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
         "templated": true,
-        "type": "application/svg",
+        "type": " image/svg+xml",
         "name": "as SVG"
       },
       {
@@ -70,7 +70,7 @@
           },
           "image": {
             "href": "https://www.thecolorapi.com/id?format=json&hex=1560BD",
-            "type": "application/svg"
+            "type": " image/svg+xml"
           },
           "formats": [
             {
@@ -115,7 +115,7 @@
           },
           "image": {
             "href": "https://www.thecolorapi.com/id?format=json&hex=2B194F",
-            "type": "application/svg"
+            "type": " image/svg+xml"
           },
           "formats": [
             {
@@ -160,7 +160,7 @@
           },
           "image": {
             "href": "https://www.thecolorapi.com/id?format=json&hex=517C66",
-            "type": "application/svg"
+            "type": " image/svg+xml"
           },
           "formats": [
             {
@@ -205,7 +205,7 @@
           },
           "image": {
             "href": "https://www.thecolorapi.com/id?format=json&hex=886221",
-            "type": "application/svg"
+            "type": " image/svg+xml"
           },
           "formats": [
             {
