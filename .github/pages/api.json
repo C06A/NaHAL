@@ -65,7 +65,7 @@
             "type": "application/hal+json"
           },
           "image": {
-            "href": "https://www.thecolorapi.com/id?format=json&named=false&hex=1560BD",
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=1560BD",
             "type": " image/svg+xml"
           },
           "namedImage": {
@@ -82,7 +82,7 @@
             "type": "application/hal+json"
           },
           "image": {
-            "href": "https://www.thecolorapi.com/id?format=json&named=false&hex=2B194F",
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=2B194F",
             "type": " image/svg+xml"
           },
           "namedImage": {
@@ -99,7 +99,7 @@
             "type": "application/hal+json"
           },
           "image": {
-            "href": "https://www.thecolorapi.com/id?format=json&named=false&hex=517C66",
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=517C66",
             "type": " image/svg+xml"
           },
           "namedImage": {
