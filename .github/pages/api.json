@@ -2,10 +2,6 @@
   "_links": {
     "curies": [
       {
-        "href": "https://www.thecolorapi.com/",
-        "name": "overview"
-      },
-      {
         "href": "https://www.thecolorapi.com/docs{#rel}",
         "name": "doc"
       }
@@ -14,7 +10,7 @@
       "href": "/",
       "type": "application/hal+json"
     },
-    "overview:about": {
+    "about": {
       "href": "https://www.thecolorapi.com",
       "type": "text/html",
       "title": "The Color API website"
@@ -65,90 +61,34 @@
       {
         "_links": {
           "self": {
-            "href": "https://www.thecolorapi.com/id?format=json&hex=1560BD",
+            "href": "colors/denim.json",
             "type": "application/hal+json"
           },
           "image": {
             "href": "https://www.thecolorapi.com/id?format=svg&hex=1560BD",
             "type": " image/svg+xml"
           },
-          "formats": [
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hex=1560BD",
-              "type": "application/hal+json",
-              "name": "HEX"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&rgb=21,96,189",
-              "type": "application/hal+json",
-              "name": "RGB"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsl=213,80,41",
-              "type": "application/hal+json",
-              "name": "HSL"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsv=213,89,74",
-              "type": "application/hal+json",
-              "name": "HSV"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&smyk=89,49,0,26",
-              "type": "application/hal+json",
-              "name": "SMYK"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&xyz=30,34,75",
-              "type": "application/hal+json",
-              "name": "XYZ"
-            }
-          ]
+          "namedImage": {
+            "href": "https://www.thecolorapi.com/id?format=svg$named=true&hex=1560BD",
+            "type": " image/svg+xml"
+          }
         },
         "name": "Denim"
       },
       {
         "_links": {
           "self": {
-            "href": "https://www.thecolorapi.com/id?format=json&hex=2B194F",
+            "href": "colors/valhalla.json",
             "type": "application/hal+json"
           },
           "image": {
             "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F",
             "type": " image/svg+xml"
           },
-          "formats": [
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hex=2B194F",
-              "type": "application/hal+json",
-              "name": "HEX"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&rgb=43,25,79",
-              "type": "application/hal+json",
-              "name": "RGB"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsl=260,52,20",
-              "type": "application/hal+json",
-              "name": "HSL"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsv=260,68,31",
-              "type": "application/hal+json",
-              "name": "HSV"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&smyk=46,68,0,69",
-              "type": "application/hal+json",
-              "name": "SMYK"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&xyz=16,13,31",
-              "type": "application/hal+json",
-              "name": "XYZ"
-            }
-          ]
+          "namedImage": {
+            "href": "https://www.thecolorapi.com/id?format=svg$named=true&hex=2B194F",
+            "type": " image/svg+xml"
+          }
         },
         "name": "Valhalla"
       },
@@ -162,38 +102,10 @@
             "href": "https://www.thecolorapi.com/id?format=svg&hex=517C66",
             "type": " image/svg+xml"
           },
-          "formats": [
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hex=517C66",
-              "type": "application/hal+json",
-              "name": "HEX"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&rgb=81,124,102",
-              "type": "application/hal+json",
-              "name": "RGB"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsl=149,21,40",
-              "type": "application/hal+json",
-              "name": "HSL"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsv=149,35,49",
-              "type": "application/hal+json",
-              "name": "HSV"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&smyk=35,0,18,51",
-              "type": "application/hal+json",
-              "name": "SMYK"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&xyz=38,44,44",
-              "type": "application/hal+json",
-              "name": "XYZ"
-            }
-          ]
+          "namedImage": {
+            "href": "https://www.thecolorapi.com/id?format=svg$named=true&hex=517C66",
+            "type": " image/svg+xml"
+          }
         },
         "name": "Como"
       },
@@ -207,38 +119,10 @@
             "href": "https://www.thecolorapi.com/id?format=svg&hex=886221",
             "type": " image/svg+xml"
           },
-          "formats": [
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hex=886221",
-              "type": "application/hal+json",
-              "name": "HEX"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&rgb=136,98,33",
-              "type": "application/hal+json",
-              "name": "RGB"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsl=38,61,33",
-              "type": "application/hal+json",
-              "name": "HSL"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&hsv=38,76,53",
-              "type": "application/hal+json",
-              "name": "HSV"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&smyk=0,18,76,47",
-              "type": "application/hal+json",
-              "name": "SMYK"
-            },
-            {
-              "href": "https://www.thecolorapi.com/id?format=json&xyz=38,40,18",
-              "type": "application/hal+json",
-              "name": "XYZ"
-            }
-          ]
+          "namedImage": {
+            "href": "https://www.thecolorapi.com/id?format=svg$named=true&hex=886221",
+            "type": " image/svg+xml"
+          }
         },
         "name": "Kumera"
       }
