@@ -7,7 +7,7 @@
       }
     ],
     "self": {
-      "href": "/",
+      "href": "/api.json",
       "type": "application/hal+json"
     },
     "about": {
@@ -35,21 +35,21 @@
         "name": "as HTML"
       }
     ],
-    "doc:schemes": [
+    "schemes": [
       {
-        "href": "https://www.thecolorapi.com/scheme?format=json{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
+        "href": "https://www.thecolorapi.com/scheme?format=json{&hex,rgb,hsl,hsv,cmyk,mode,count}",
         "templated": true,
         "type": "application/hal+json",
         "name": "as JSON"
       },
       {
-        "href": "https://www.thecolorapi.com/scheme?format=svg{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
+        "href": "https://www.thecolorapi.com/scheme?format=svg{&hex,rgb,hsl,hsv,cmyk,w,named,mode,count}",
         "templated": true,
         "type": " image/svg+xml",
         "name": "as SVG"
       },
       {
-        "href": "https://www.thecolorapi.com/scheme?format=html{&hex,rgb,hsl,hsv,cmyk,named,mode,count}",
+        "href": "https://www.thecolorapi.com/scheme?format=html{&hex,rgb,hsl,hsv,cmyk,mode,count}",
         "templated": true,
         "type": "text/html",
         "name": "as HTML"
@@ -95,7 +95,7 @@
       {
         "_links": {
           "self": {
-            "href": "https://www.thecolorapi.com/id?format=json&hex=517C66",
+            "href": "colors/como.json",
             "type": "application/hal+json"
           },
           "image": {
@@ -112,7 +112,7 @@
       {
         "_links": {
           "self": {
-            "href": "https://www.thecolorapi.com/id?format=json&hex=886221",
+            "href": "colors/kumera.json",
             "type": "application/hal+json"
           },
           "image": {
@@ -122,6 +122,125 @@
           "namedImage": {
             "href": "https://www.thecolorapi.com/id?format=svg&hex=886221",
             "type": " image/svg+xml"
+          }
+        },
+        "name": "Kumera"
+      }
+    ],
+    "doc:schemes": [
+
+      {
+        "_links": {
+          "self": {
+            "href": "schemes/denim.json",
+            "type": "application/hal+json"
+          },
+          "complement": {
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=1560BD&mode=complement{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "analogic": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=1560BD&mode=analogic{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "triad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=1560BD&mode=triad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "quad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=1560BD&mode=quad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          }
+        },
+        "name": "Denim"
+      },
+      {
+        "_links": {
+          "self": {
+            "href": "schemes/valhalla.json",
+            "type": "application/hal+json"
+          },
+          "complement": {
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=2B194F&mode=complement{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "analogic": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F&mode=analogic{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "triad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F&mode=triad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "quad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F&mode=quad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          }
+        },
+        "name": "Valhalla"
+      },
+      {
+        "_links": {
+          "self": {
+            "href": "schemes/como.json",
+            "type": "application/hal+json"
+          },
+          "complement": {
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=517C66&mode=complement{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "analogic": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=517C66&mode=analogic{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "triad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=517C66&mode=triad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "quad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=517C66&mode=quad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          }
+        },
+        "name": "Como"
+      },
+      {
+        "_links": {
+          "self": {
+            "href": "schemes/kumera.json",
+            "type": "application/hal+json"
+          },
+          "complement": {
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=886221&mode=complement{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "analogic": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=886221&mode=analogic{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "triad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=886221&mode=triad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
+          },
+          "quad": {
+            "href": "https://www.thecolorapi.com/id?format=svg&hex=886221&mode=quad{&count}",
+            "type": " image/svg+xml",
+            "templated": true
           }
         },
         "name": "Kumera"
