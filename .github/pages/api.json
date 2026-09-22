@@ -136,22 +136,22 @@
             "type": "application/hal+json"
           },
           "complement": {
-            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=1560BD&mode=complement{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&named=false&hex=1560BD&mode=complement{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "analogic": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=1560BD&mode=analogic{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=1560BD&mode=analogic{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "triad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=1560BD&mode=triad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=1560BD&mode=triad{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "quad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=1560BD&mode=quad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=1560BD&mode=quad{&count}",
             "type": " image/svg+xml",
             "templated": true
           }
@@ -165,22 +165,22 @@
             "type": "application/hal+json"
           },
           "complement": {
-            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=2B194F&mode=complement{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&named=false&hex=2B194F&mode=complement{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "analogic": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F&mode=analogic{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=2B194F&mode=analogic{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "triad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F&mode=triad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=2B194F&mode=triad{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "quad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F&mode=quad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=2B194F&mode=quad{&count}",
             "type": " image/svg+xml",
             "templated": true
           }
@@ -194,22 +194,22 @@
             "type": "application/hal+json"
           },
           "complement": {
-            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=517C66&mode=complement{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&named=false&hex=517C66&mode=complement{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "analogic": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=517C66&mode=analogic{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=517C66&mode=analogic{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "triad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=517C66&mode=triad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=517C66&mode=triad{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "quad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=517C66&mode=quad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=517C66&mode=quad{&count}",
             "type": " image/svg+xml",
             "templated": true
           }
@@ -223,22 +223,22 @@
             "type": "application/hal+json"
           },
           "complement": {
-            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=886221&mode=complement{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&named=false&hex=886221&mode=complement{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "analogic": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=886221&mode=analogic{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=886221&mode=analogic{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "triad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=886221&mode=triad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=886221&mode=triad{&count}",
             "type": " image/svg+xml",
             "templated": true
           },
           "quad": {
-            "href": "https://www.thecolorapi.com/id?format=svg&hex=886221&mode=quad{&count}",
+            "href": "https://www.thecolorapi.com/scheme?format=svg&hex=886221&mode=quad{&count}",
             "type": " image/svg+xml",
             "templated": true
           }
