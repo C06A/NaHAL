@@ -1,0 +1,49 @@
+{
+  "_links": {
+    "self": {
+      "href": "colors/valhalla.json",
+      "type": "application/hal+json"
+    },
+    "image": {
+      "href": "https://www.thecolorapi.com/id?format=svg&hex=2B194F",
+      "type": " image/svg+xml"
+    },
+    "namedImage": {
+      "href": "https://www.thecolorapi.com/id?format=svg$named=true&hex=2B194F",
+      "type": " image/svg+xml"
+    },
+    "formats": [
+      {
+        "href": "https://www.thecolorapi.com/id?format=json&hex=2B194F",
+        "type": "application/hal+json",
+        "name": "HEX"
+      },
+      {
+        "href": "https://www.thecolorapi.com/id?format=json&rgb=43,25,79",
+        "type": "application/hal+json",
+        "name": "RGB"
+      },
+      {
+        "href": "https://www.thecolorapi.com/id?format=json&hsl=260,52,20",
+        "type": "application/hal+json",
+        "name": "HSL"
+      },
+      {
+        "href": "https://www.thecolorapi.com/id?format=json&hsv=260,68,31",
+        "type": "application/hal+json",
+        "name": "HSV"
+      },
+      {
+        "href": "https://www.thecolorapi.com/id?format=json&smyk=46,68,0,69",
+        "type": "application/hal+json",
+        "name": "SMYK"
+      },
+      {
+        "href": "https://www.thecolorapi.com/id?format=json&xyz=16,13,31",
+        "type": "application/hal+json",
+        "name": "XYZ"
+      }
+    ]
+  },
+  "name": "Valhalla"
+}
