@@ -116,7 +116,7 @@
             "type": "application/hal+json"
           },
           "image": {
-            "href": "https://www.thecolorapi.com/id?format=json&named=false&hex=886221",
+            "href": "https://www.thecolorapi.com/id?format=svg&named=false&hex=886221",
             "type": " image/svg+xml"
           },
           "namedImage": {
@@ -128,7 +128,6 @@
       }
     ],
     "doc:schemes": [
-
       {
         "_links": {
           "self": {
